@@ -13,13 +13,51 @@ typedef struct Tag_Window {
 	b8 should_close;
 } Window;
 
-static Window window = {0};
+static Window window;
+static BITMAPINFO bitmap_info;
+static void *bitmap_memory;
+static HBITMAP bitmap_handle;
+static HDC bitmap_device_context;
 
 void resize_dib_section() {
+	if (bitmap_handle) {
+		DeleteObject(bitmap_handle);
+	}
 	
+	if (!bitmap_device_context) {
+		// @todo: recreate under certain special circumstances?
+		bitmap_device_context = CreateCompatibleDC(NULL);
+	}
+
+	bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
+	bitmap_info.bmiHeader.biWidth = window.width;
+	bitmap_info.bmiHeader.biHeight = window.height;
+	bitmap_info.bmiHeader.biPlanes = 1;
+	bitmap_info.bmiHeader.biBitCount = 32;
+	bitmap_info.bmiHeader.biCompression = BI_RGB;
+	//bitmap_info.bmiHeader.biSizeImage = 0;
+	//bitmap_info.bmiHeader.biXPelsPerMeter = 0;
+	//bitmap_info.bmiHeader.biYPelsPerMeter = 0;
+	//bitmap_info.bmiHeader.biClrUsed = 0;
+	//bitmap_info.bmiHeader.biClrImportant = 0;
+
+	bitmap_handle = CreateDIBSection(
+		bitmap_device_context, 
+		&bitmap_info,
+		DIB_RGB_COLORS,
+		&bitmap_memory,
+		NULL, 0);
 }
 
-
+void update_window(HDC device_context, int x, int y, int width, int height) {
+	StretchDIBits(
+		device_context,
+		x, y, width, height, // destination
+		x, y, width, height, // source
+		bitmap_memory,
+		&bitmap_info,
+		DIB_RGB_COLORS, SRCCOPY);
+}
 
 LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam) {
 	LRESULT result = 0;
@@ -28,7 +66,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		case WM_SIZE: {
 			window.width = LOWORD(lparam);
 			window.height = HIWORD(lparam);
-			resize_dib_section();
+			resize_dib_section(); // dib == device independent bitmap
 		} break;
 
 		case WM_CLOSE: {
@@ -55,14 +93,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			int y = paint.rcPaint.top;
 			int width = paint.rcPaint.right - paint.rcPaint.left;
 			int height = paint.rcPaint.bottom - paint.rcPaint.top;
-			static DWORD operation = WHITENESS;
-			PatBlt(device_context, x, y, width, height, operation);
-			if (operation == WHITENESS) {
-				operation = BLACKNESS;
-			} 
-			else {
-				operation = WHITENESS;
-			}
+			update_window(device_context, x, y, width, height);
 			EndPaint(window.handle, &paint);
 		} break;
 
