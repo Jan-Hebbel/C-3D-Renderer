@@ -2,8 +2,8 @@
 
 #include <windows.h>
 
-const int WIDTH = 1920;
-const int HEIGHT = 1080;
+const int WIDTH = 1440;
+const int HEIGHT = 810;
 
 typedef struct Tag_Window {
 	int width;
