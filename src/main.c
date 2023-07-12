@@ -32,9 +32,9 @@ typedef struct Tag_Offscreen_Buffer {
 //
 // globals
 //
-static b8 should_close = M_TRUE;
+static b8 global_should_close = M_TRUE;
 static Offscreen_Buffer global_backbuffer;
-static Window window;
+static Window global_window;
 
 void render_weird_gradient(Offscreen_Buffer buffer, int xoffset, int yoffset) {
 	u8 *row = (u8 *)buffer.memory;
@@ -95,12 +95,12 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 
 	switch (message) {
 		case WM_SIZE: {
-			window.canvas_width = LOWORD(lparam);
-			window.canvas_height = HIWORD(lparam);
+			global_window.canvas_width = LOWORD(lparam);
+			global_window.canvas_height = HIWORD(lparam);
 		} break;
 
 		case WM_CLOSE: {
-			should_close = M_TRUE;
+			global_should_close = M_TRUE;
 		} break;
 
 		case WM_ACTIVATEAPP: {
@@ -113,7 +113,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		} break;
 
 		case WM_DESTROY: {
-			should_close = M_TRUE;
+			global_should_close = M_TRUE;
 		} break;
 
 		case WM_PAINT: {
@@ -145,7 +145,7 @@ void platform_process_events() {
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
 		switch (message.message) {
 			case WM_QUIT: {
-				should_close = M_TRUE;
+				global_should_close = M_TRUE;
 			} break;
 
 			case WM_KEYDOWN:
@@ -159,7 +159,7 @@ void platform_process_events() {
 
 				switch(vk_code) {
 					case VK_F4: {
-						if (alt_down) should_close = M_TRUE;
+						if (alt_down) global_should_close = M_TRUE;
 					} break;
 						
 					default: {
@@ -195,11 +195,11 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	//
 	// create window
 	//
-	window.width = WIDTH;
-	window.height = HEIGHT;
-	window.instance = instance;
+	global_window.width = WIDTH;
+	global_window.height = HEIGHT;
+	global_window.instance = instance;
 
-	resize_dib_section(&global_backbuffer, window.width, window.height);
+	resize_dib_section(&global_backbuffer, global_window.width, global_window.height);
 
 	WNDCLASSA w_class = {0};
 	w_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -213,26 +213,26 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		return FAILURE;
 	}
 
-	window.handle = CreateWindowExA(
+	global_window.handle = CreateWindowExA(
 		0,
 		w_class.lpszClassName,
 		"3drenderer",
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 		100, 100,
-		window.width, window.height,
+		global_window.width, global_window.height,
 		0,
 		0,
 		w_class.hInstance,
 		0);
 
-	if (!window.handle) {
+	if (!global_window.handle) {
 		return FAILURE;
 	}
 
 	//
 	// loop preparation
 	//
-	should_close = M_FALSE;
+	global_should_close = M_FALSE;
 
 	LARGE_INTEGER last_counter;
 	QueryPerformanceCounter(&last_counter);
@@ -242,7 +242,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	double fps = 0.0;
 	double mcpf = 0.0;
 
-	while (!should_close) {
+	while (!global_should_close) {
 		float delta_time = (float)frame_time / 1000.0f;
 
 		platform_process_events();
@@ -251,9 +251,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		static int yoffset = 0;
 		render_weird_gradient(global_backbuffer, xoffset, yoffset);
 
-		HDC device_context = GetDC(window.handle);
-		copy_buffer_to_display(device_context, global_backbuffer, window.canvas_width, window.canvas_height);
-		ReleaseDC(window.handle, device_context);
+		HDC device_context = GetDC(global_window.handle);
+		copy_buffer_to_display(device_context, global_backbuffer, global_window.canvas_width, global_window.canvas_height);
+		ReleaseDC(global_window.handle, device_context);
 
 		++xoffset;
 		yoffset += 2;
