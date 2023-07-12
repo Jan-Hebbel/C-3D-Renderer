@@ -2,14 +2,22 @@
 
 #include <windows.h>
 
+//
+// constants
+//
 const int WIDTH = 1440;
 const int HEIGHT = 810;
 
+//
+// structures
+//
 typedef struct Tag_Window {
 	int width;
 	int height;
 	HINSTANCE instance;
 	HWND handle;
+	int canvas_width;
+	int canvas_height;
 } Window;
 
 typedef struct Tag_Offscreen_Buffer {
@@ -21,8 +29,12 @@ typedef struct Tag_Offscreen_Buffer {
 	int bytes_per_pixel;
 } Offscreen_Buffer;
 
+//
+// globals
+//
 static b8 should_close = M_TRUE;
 static Offscreen_Buffer global_backbuffer;
+static Window window;
 
 void render_weird_gradient(Offscreen_Buffer buffer, int xoffset, int yoffset) {
 	u8 *row = (u8 *)buffer.memory;
@@ -67,10 +79,11 @@ void resize_dib_section(Offscreen_Buffer *buffer, int width, int height) {
 	buffer->pitch = buffer->width * buffer->bytes_per_pixel;
 }
 
-void copy_buffer_to_display(HDC device_context, Offscreen_Buffer buffer) {
+void copy_buffer_to_display(HDC device_context, Offscreen_Buffer buffer, int canvas_width, int canvas_height) {
+	// @todo: aspect ratio correction
 	StretchDIBits(
 		device_context,
-		0, 0, buffer.width, buffer.height, // destination
+		0, 0, canvas_width, canvas_height, // destination
 		0, 0, buffer.width, buffer.height, // source
 		buffer.memory,
 		&buffer.info,
@@ -82,9 +95,8 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 
 	switch (message) {
 		case WM_SIZE: {
-			int width = LOWORD(lparam);
-			int height = HIWORD(lparam);
-			resize_dib_section(&global_backbuffer, width, height); // dib == device independent bitmap
+			window.canvas_width = LOWORD(lparam);
+			window.canvas_height = HIWORD(lparam);
 		} break;
 
 		case WM_CLOSE: {
@@ -107,7 +119,9 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		case WM_PAINT: {
 			PAINTSTRUCT paint;
 			HDC device_context = BeginPaint(w_handle, &paint);
-			copy_buffer_to_display(device_context, global_backbuffer);
+			int width = paint.rcPaint.right - paint.rcPaint.left;
+			int height = paint.rcPaint.bottom - paint.rcPaint.top;
+			copy_buffer_to_display(device_context, global_backbuffer, width, height);
 			EndPaint(w_handle, &paint);
 		} break;
 
@@ -181,10 +195,11 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	//
 	// create window
 	//
-	Window window = {0};
 	window.width = WIDTH;
 	window.height = HEIGHT;
 	window.instance = instance;
+
+	resize_dib_section(&global_backbuffer, window.width, window.height);
 
 	WNDCLASSA w_class = {0};
 	w_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -237,7 +252,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		render_weird_gradient(global_backbuffer, xoffset, yoffset);
 
 		HDC device_context = GetDC(window.handle);
-		copy_buffer_to_display(device_context, global_backbuffer);
+		copy_buffer_to_display(device_context, global_backbuffer, window.canvas_width, window.canvas_height);
 		ReleaseDC(window.handle, device_context);
 
 		++xoffset;
