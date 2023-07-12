@@ -126,34 +126,6 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 	return result;
 }
 
-void *platform_create_window(const char *title, int width, int height, HINSTANCE instance) {
-	WNDCLASSA w_class = {0};
-	w_class.style = CS_HREDRAW | CS_VREDRAW;
-	w_class.lpfnWndProc = main_window_callback;
-	w_class.hInstance = instance;
-	w_class.hCursor = LoadCursor(0, IDC_ARROW);
-	//w_class.hIcon = ;
-	w_class.lpszClassName = "3drendererwindowclass";
-
-	if (!RegisterClassA(&w_class)) {
-		return M_FALSE;
-	}
-
-	HWND w_handle = CreateWindowExA(
-		0,
-		w_class.lpszClassName,
-		title,
-		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		100, 100,
-		width, height,
-		0,
-		0,
-		w_class.hInstance,
-		0);
-
-	return w_handle;
-}
-
 void platform_process_events() {
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
@@ -199,20 +171,52 @@ void render() {
 }
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line, int cmd_show) {
+	//
+	// setting up performance metrics
+	//
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
 	i64 perf_count_frequency = perf_count_frequency_result.QuadPart;
 
+	//
+	// create window
+	//
 	Window window = {0};
 	window.width = WIDTH;
 	window.height = HEIGHT;
 	window.instance = instance;
-	window.handle = platform_create_window("3drenderer", window.width, window.height, window.instance);
+
+	WNDCLASSA w_class = {0};
+	w_class.style = CS_HREDRAW | CS_VREDRAW;
+	w_class.lpfnWndProc = main_window_callback;
+	w_class.hInstance = instance;
+	w_class.hCursor = LoadCursor(0, IDC_ARROW);
+	//w_class.hIcon = ;
+	w_class.lpszClassName = "3drendererwindowclass";
+
+	if (!RegisterClassA(&w_class)) {
+		return FAILURE;
+	}
+
+	window.handle = CreateWindowExA(
+		0,
+		w_class.lpszClassName,
+		"3drenderer",
+		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+		100, 100,
+		window.width, window.height,
+		0,
+		0,
+		w_class.hInstance,
+		0);
 
 	if (!window.handle) {
 		return FAILURE;
 	}
 
+	//
+	// loop preparation
+	//
 	should_close = M_FALSE;
 
 	LARGE_INTEGER last_counter;
