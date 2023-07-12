@@ -10,65 +10,71 @@ typedef struct Tag_Window {
 	int height;
 	HINSTANCE instance;
 	HWND handle;
-	b8 should_close;
 } Window;
 
-static Window window;
+typedef struct Tag_Offscreen_Buffer {
+	BITMAPINFO info;
+	void *memory;
+	int width;
+	int height;
+	int pitch;
+	int bytes_per_pixel;
+} Offscreen_Buffer;
 
-static BITMAPINFO bitmap_info;
-static void *bitmap_memory;
-static int bitmap_width;
-static int bitmap_height;
-static const int BYTES_PER_PIXEL = 4;
+static b8 should_close = TRUE;
+static Window window; // @todo: un-global this
+static Offscreen_Buffer global_backbuffer;
 
-void render_weird_gradient(int xoffset, int yoffset) {
-	int pitch = bitmap_width * BYTES_PER_PIXEL;
-	u8 *row = (u8 *)bitmap_memory;
-	for (int y = 0; y < bitmap_height; ++y) {
+void render_weird_gradient(Offscreen_Buffer buffer, int xoffset, int yoffset) {
+	u8 *row = (u8 *)buffer.memory;
+	for (int y = 0; y < buffer.height; ++y) {
 		u32 *pixel = (u32 *)row;
-		for (int x = 0; x < bitmap_width; ++x) {
+		for (int x = 0; x < buffer.width; ++x) {
 			u8 blue  = x + xoffset;
 			u8 green = y + yoffset;
 
 			*pixel++ = (green << 8) | blue;
 		}
-		row += pitch;
+		row += buffer.pitch;
 	}
 }
 
-void resize_dib_section() {
-	if (bitmap_memory) {
-		VirtualFree(bitmap_memory, 0, MEM_RELEASE);
+void resize_dib_section(Offscreen_Buffer *buffer, int width, int height) {
+	if (buffer->memory) {
+		VirtualFree(buffer->memory, 0, MEM_RELEASE);
 	}
 
-	bitmap_width = window.width;
-	bitmap_height = window.height;
+	buffer->width  = width;
+	buffer->height = height;
+	buffer->bytes_per_pixel = 4;
 
-	bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
-	bitmap_info.bmiHeader.biWidth = window.width;
-	bitmap_info.bmiHeader.biHeight = -window.height; // '-' becaues I want top down dib (origin at top left corner)
-	bitmap_info.bmiHeader.biPlanes = 1;
-	bitmap_info.bmiHeader.biBitCount = 32;
-	bitmap_info.bmiHeader.biCompression = BI_RGB;
+	buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
+	buffer->info.bmiHeader.biWidth = buffer->width;
+	buffer->info.bmiHeader.biHeight = -buffer->height; // '-' becaues I want top down dib (origin at top left corner)
+	buffer->info.bmiHeader.biPlanes = 1;
+	buffer->info.bmiHeader.biBitCount = 32;
+	buffer->info.bmiHeader.biCompression = BI_RGB;
 	//bitmap_info.bmiHeader.biSizeImage = 0;
 	//bitmap_info.bmiHeader.biXPelsPerMeter = 0;
 	//bitmap_info.bmiHeader.biYPelsPerMeter = 0;
 	//bitmap_info.bmiHeader.biClrUsed = 0;
 	//bitmap_info.bmiHeader.biClrImportant = 0;
 
-	int bitmap_memory_size = BYTES_PER_PIXEL * window.width * window.height;
-	bitmap_memory = VirtualAlloc(NULL, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+	int bitmap_memory_size = buffer->bytes_per_pixel * buffer->width * buffer->height;
+	buffer->memory = VirtualAlloc(NULL, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
 
 	// @todo: probably clear to black
+
+	buffer->pitch = buffer->width * buffer->bytes_per_pixel;
 }
 
-void update_window(HDC device_context, int x, int y, int width, int height) {
+void copy_buffer_to_display(HDC device_context, Offscreen_Buffer buffer, Window window, int x, int y, int width, int height) {
 	StretchDIBits(
 		device_context,
-		0, 0, bitmap_width, bitmap_height, // destination
-		0, 0, window.width, window.height, // source
-		bitmap_memory,
-		&bitmap_info,
+		0, 0, buffer.width, buffer.height, // destination
+		0, 0, width, height, // source
+		buffer.memory,
+		&buffer.info,
 		DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -77,13 +83,13 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 
 	switch (message) {
 		case WM_SIZE: {
-			window.width = LOWORD(lparam);
-			window.height = HIWORD(lparam);
-			resize_dib_section(); // dib == device independent bitmap
+			int width = LOWORD(lparam);
+			int height = HIWORD(lparam);
+			resize_dib_section(&global_backbuffer, width, height); // dib == device independent bitmap
 		} break;
 
 		case WM_CLOSE: {
-			window.should_close = TRUE;
+			should_close = TRUE;
 		} break;
 
 		case WM_ACTIVATEAPP: {
@@ -96,18 +102,18 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		} break;
 
 		case WM_DESTROY: {
-			window.should_close = TRUE;
+			should_close = TRUE;
 		} break;
 
 		case WM_PAINT: {
 			PAINTSTRUCT paint;
-			HDC device_context = BeginPaint(window.handle, &paint);
+			HDC device_context = BeginPaint(w_handle, &paint);
 			//int x = paint.rcPaint.left;
 			//int y = paint.rcPaint.top;
-			//int width = paint.rcPaint.right - paint.rcPaint.left;
-			//int height = paint.rcPaint.bottom - paint.rcPaint.top;
-			update_window(device_context, 0, 0, window.width, window.height);
-			EndPaint(window.handle, &paint);
+			int width = paint.rcPaint.right - paint.rcPaint.left;
+			int height = paint.rcPaint.bottom - paint.rcPaint.top;
+			copy_buffer_to_display(device_context, global_backbuffer, window, 0, 0, width, height);
+			EndPaint(w_handle, &paint);
 		} break;
 
 		case WM_KEYDOWN:
@@ -127,7 +133,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 
 b8 platform_create_window(const char *title, int width, int height) {
 	WNDCLASSA w_class = {0};
-	//w_class.style = CS_HREDRAW | CS_VREDRAW; // @todo: is this relevant?
+	w_class.style = CS_HREDRAW | CS_VREDRAW;
 	w_class.lpfnWndProc = main_window_callback;
 	w_class.hInstance = window.instance;
 	w_class.hCursor = LoadCursor(0, IDC_ARROW);
@@ -164,7 +170,7 @@ void platform_process_events() {
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
 		switch (message.message) {
 			case WM_QUIT: {
-				window.should_close = TRUE;
+				should_close = TRUE;
 			} break;
 
 			case WM_KEYDOWN:
@@ -178,7 +184,7 @@ void platform_process_events() {
 
 				switch(vk_code) {
 					case VK_F4: {
-						if (alt_down) window.should_close = TRUE;
+						if (alt_down) should_close = TRUE;
 					} break;
 						
 					default: {
@@ -211,14 +217,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	window.width = WIDTH;
 	window.height = HEIGHT;
 	window.instance = instance;
-	window.should_close = TRUE;
 
 	int result = platform_create_window("3drenderer", window.width, window.height);
 	if (result != TRUE) {
 		return result;
 	}
 
-	window.should_close = FALSE;
+	should_close = FALSE;
 
 	LARGE_INTEGER last_counter;
 	QueryPerformanceCounter(&last_counter);
@@ -228,20 +233,21 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	double fps = 0.0;
 	double mcpf = 0.0;
 
-	while (!window.should_close) {
+	while (!should_close) {
 		float delta_time = (float)frame_time / 1000.0f;
 
 		platform_process_events();
 
 		static int xoffset = 0;
 		static int yoffset = 0;
-		render_weird_gradient(xoffset, yoffset);
+		render_weird_gradient(global_backbuffer, xoffset, yoffset);
 
 		HDC device_context = GetDC(window.handle);
-		update_window(device_context, 0, 0, window.width, window.height);
+		copy_buffer_to_display(device_context, global_backbuffer, window, 0, 0, global_backbuffer.width, global_backbuffer.height);
 		ReleaseDC(window.handle, device_context);
 
 		++xoffset;
+		yoffset += 2;
 
 		update();
 		render();
