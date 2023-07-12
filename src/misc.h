@@ -24,6 +24,9 @@ typedef uint64_t u64;
 //
 // other defines
 //
-
+#define M_TRUE  1
+#define M_FALSE 0
+#define SUCCESS 0
+#define FAILURE 1
 
 #endif
