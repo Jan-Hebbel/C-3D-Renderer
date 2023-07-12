@@ -202,7 +202,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	resize_dib_section(&global_backbuffer, global_window.width, global_window.height);
 
 	WNDCLASSA w_class = {0};
-	w_class.style = CS_HREDRAW | CS_VREDRAW;
+	w_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	w_class.lpfnWndProc = main_window_callback;
 	w_class.hInstance = instance;
 	w_class.hCursor = LoadCursor(0, IDC_ARROW);
@@ -229,6 +229,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		return FAILURE;
 	}
 
+	HDC device_context = GetDC(global_window.handle);
+
 	//
 	// loop preparation
 	//
@@ -251,9 +253,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		static int yoffset = 0;
 		render_weird_gradient(global_backbuffer, xoffset, yoffset);
 
-		HDC device_context = GetDC(global_window.handle);
 		copy_buffer_to_display(device_context, global_backbuffer, global_window.canvas_width, global_window.canvas_height);
-		ReleaseDC(global_window.handle, device_context);
 
 		++xoffset;
 		yoffset += 2;
