@@ -1,12 +1,15 @@
 #include "misc.h"
 
+#include "input.h"
+
 #include <windows.h>
+#include <dsound.h>
 
 //
 // constants
 //
-const int WIDTH = 1440;
-const int HEIGHT = 810;
+const int WIDTH = 1280;
+const int HEIGHT = 720;
 
 //
 // structures
@@ -35,18 +38,79 @@ typedef struct Tag_Offscreen_Buffer {
 static b8 global_should_close = M_TRUE;
 static Offscreen_Buffer global_backbuffer;
 static Window global_window;
+static LPDIRECTSOUNDBUFFER global_sound_buffer;
 
-void render_weird_gradient(Offscreen_Buffer buffer, int xoffset, int yoffset) {
-	u8 *row = (u8 *)buffer.memory;
-	for (int y = 0; y < buffer.height; ++y) {
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(Direct_Sound_Create);
+
+b8 InitDirectSound(HWND window, int buffer_size, int samples_per_second) {
+	// load the library
+	HMODULE dsound_library = LoadLibraryA("dsound.dll");
+	if (!dsound_library) {
+		return M_FALSE;
+	}
+
+	Direct_Sound_Create *direct_sound_create = (Direct_Sound_Create *)GetProcAddress(dsound_library, "DirectSoundCreate");
+
+	if (!direct_sound_create) {
+		return M_FALSE;
+	}
+
+	LPDIRECTSOUND direct_sound = NULL;
+	if (FAILED( direct_sound_create(NULL, &direct_sound, NULL) )) {
+		return M_FALSE;
+	}
+
+	if (!direct_sound) {
+		return M_FALSE;
+	}
+
+	if (IDirectSound_SetCooperativeLevel(direct_sound, window, DSSCL_PRIORITY) != DS_OK) {
+		return M_FALSE;
+	}
+
+	LPDIRECTSOUNDBUFFER primary_buffer;
+	DSBUFFERDESC primary_buffer_description = {0};
+	primary_buffer_description.dwSize = sizeof(primary_buffer_description);
+	primary_buffer_description.dwFlags = DSBCAPS_PRIMARYBUFFER;
+	if (IDirectSound_CreateSoundBuffer(direct_sound, &primary_buffer_description, &primary_buffer, NULL) != DS_OK) {
+		return M_FALSE;
+	}
+
+	WAVEFORMATEX wave_format = {0};
+	wave_format.wFormatTag = WAVE_FORMAT_PCM;
+	wave_format.nChannels = 2;
+	wave_format.nSamplesPerSec = samples_per_second;
+	wave_format.wBitsPerSample = 16;
+	wave_format.nBlockAlign = wave_format.nChannels * wave_format.wBitsPerSample / 8;
+	wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec * wave_format.nBlockAlign;
+	wave_format.cbSize = 0;
+	if (IDirectSoundBuffer_SetFormat(primary_buffer, &wave_format) != DS_OK) {
+		return M_FALSE;
+	}
+
+	DSBUFFERDESC secondary_buffer_description = {0};
+	secondary_buffer_description.dwSize = sizeof(secondary_buffer_description);
+	secondary_buffer_description.dwBufferBytes = buffer_size;
+	secondary_buffer_description.lpwfxFormat = &wave_format;
+	if (IDirectSound_CreateSoundBuffer(direct_sound, &secondary_buffer_description, &global_sound_buffer, NULL) != DS_OK) {
+		return M_FALSE;
+	}
+
+	return M_TRUE;
+}
+
+void render_weird_gradient(Offscreen_Buffer *buffer, int blue_offset, int green_offset) {
+	u8 *row = (u8 *)buffer->memory;
+	for (int y = 0; y < buffer->height; ++y) {
 		u32 *pixel = (u32 *)row;
-		for (int x = 0; x < buffer.width; ++x) {
-			u8 blue  = x + xoffset;
-			u8 green = y + yoffset;
+		for (int x = 0; x < buffer->width; ++x) {
+			u8 blue  = x + blue_offset;
+			u8 green = y + green_offset;
 
 			*pixel++ = (green << 8) | blue;
 		}
-		row += buffer.pitch;
+		row += buffer->pitch;
 	}
 }
 
@@ -72,21 +136,21 @@ void resize_dib_section(Offscreen_Buffer *buffer, int width, int height) {
 	//bitmap_info.bmiHeader.biClrImportant = 0;
 
 	int bitmap_memory_size = buffer->bytes_per_pixel * buffer->width * buffer->height;
-	buffer->memory = VirtualAlloc(NULL, bitmap_memory_size, MEM_COMMIT, PAGE_READWRITE);
+	buffer->memory = VirtualAlloc(NULL, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	// @todo: probably clear to black
 
 	buffer->pitch = buffer->width * buffer->bytes_per_pixel;
 }
 
-void copy_buffer_to_display(HDC device_context, Offscreen_Buffer buffer, int canvas_width, int canvas_height) {
+void copy_buffer_to_display(Offscreen_Buffer *buffer, HDC device_context, int canvas_width, int canvas_height) {
 	// @todo: aspect ratio correction
 	StretchDIBits(
 		device_context,
 		0, 0, canvas_width, canvas_height, // destination
-		0, 0, buffer.width, buffer.height, // source
-		buffer.memory,
-		&buffer.info,
+		0, 0, buffer->width, buffer->height, // source
+		buffer->memory,
+		&buffer->info,
 		DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -108,7 +172,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			// the key doesn't get set to M_FALSE since Windows doesn't send an event to the window when
 			// it's out of focus
 			if (wparam == M_FALSE) { // window loses focus
-				//reset_keyboard_state();
+				reset_keyboard_state();
 			}
 		} break;
 
@@ -121,7 +185,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			HDC device_context = BeginPaint(w_handle, &paint);
 			int width = paint.rcPaint.right - paint.rcPaint.left;
 			int height = paint.rcPaint.bottom - paint.rcPaint.top;
-			copy_buffer_to_display(device_context, global_backbuffer, width, height);
+			copy_buffer_to_display(&global_backbuffer, device_context, width, height);
 			EndPaint(w_handle, &paint);
 		} break;
 
@@ -141,6 +205,8 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 }
 
 void platform_process_events() {
+	Event_Reader event_reader = {0};
+
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
 		switch (message.message) {
@@ -155,13 +221,47 @@ void platform_process_events() {
 				WORD vk_code = LOWORD(message.wParam);
 				WORD key_flags = HIWORD(message.lParam);
 
+				b8 released = (key_flags & KF_UP) == KF_UP;
+				b8 is_down = !released;
+				b8 repeated = ((key_flags & KF_REPEAT) == KF_REPEAT) && !released;
 				b8 alt_down = (key_flags & KF_ALTDOWN) == KF_ALTDOWN;
 
-				switch(vk_code) {
+				Key_State key_state = {
+					.is_down = is_down,
+					.released = released,
+					.repeated = repeated,
+					.alt_down = alt_down
+				};
+
+				// NOTE: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
+				// to move at the same time with a and w, use: while (vkCode == 'W' && !released)
+				// NOTE: to get only the first pressing of a button use: && is_down && !repeated
+
+				switch (vk_code) {
+					case 'W': {
+						process_key_event(W, key_state, &event_reader);
+					} break;
+
+					case 'A': {
+						process_key_event(A, key_state, &event_reader);
+					} break;
+
+					case 'S': {
+						process_key_event(S, key_state, &event_reader);
+					} break;
+
+					case 'D': {
+						process_key_event(D, key_state, &event_reader);
+					} break;
+
+					case VK_ESCAPE: {
+						process_key_event(ESCAPE, key_state, &event_reader);
+					} break;
+
 					case VK_F4: {
 						if (alt_down) global_should_close = M_TRUE;
 					} break;
-						
+
 					default: {
 						// do nothing
 					} break;
@@ -229,11 +329,11 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		return FAILURE;
 	}
 
-	HDC device_context = GetDC(global_window.handle);
-
 	//
 	// loop preparation
 	//
+	HDC device_context = GetDC(global_window.handle);
+
 	global_should_close = M_FALSE;
 
 	LARGE_INTEGER last_counter;
@@ -244,22 +344,89 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	double fps = 0.0;
 	double mcpf = 0.0;
 
+	int blue_offset = 0;
+	int green_offset = 0;
+
+	int samples_per_second = 48000;
+	int tone_hz = 256;
+	i16 tone_volume = 200;
+	u32 running_sample_index = 0;
+	int half_square_wave_period = (samples_per_second / tone_hz) / 2;
+	int bytes_per_sample = sizeof(i16) * 2;
+	int secondary_buffer_size = samples_per_second * bytes_per_sample;
+
+	InitDirectSound(global_window.handle, secondary_buffer_size, samples_per_second);
+	IDirectSoundBuffer_Play(global_sound_buffer, 0, 0, DSBPLAY_LOOPING);
+
 	while (!global_should_close) {
 		float delta_time = (float)frame_time / 1000.0f;
 
 		platform_process_events();
 
-		static int xoffset = 0;
-		static int yoffset = 0;
-		render_weird_gradient(global_backbuffer, xoffset, yoffset);
+		if (get_key_state(W).is_down) {
+			green_offset -= 1;
+		}
+		if (get_key_state(A).is_down) {
+			blue_offset -= 1;
+		}
+		if (get_key_state(S).is_down) {
+			green_offset += 1;
+		}
+		if (get_key_state(D).is_down) {
+			blue_offset += 1;
+		}
+		render_weird_gradient(&global_backbuffer, blue_offset, green_offset);
 
-		copy_buffer_to_display(device_context, global_backbuffer, global_window.canvas_width, global_window.canvas_height);
+		copy_buffer_to_display(&global_backbuffer, device_context, global_window.canvas_width, global_window.canvas_height);
 
-		++xoffset;
-		yoffset += 2;
+		// @test
+		DWORD play_cursor;
+		DWORD write_cursor;
+		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(global_sound_buffer, &play_cursor, &write_cursor) )) {
+			DWORD byte_to_lock = running_sample_index * bytes_per_sample % secondary_buffer_size;
+			DWORD bytes_to_write;
+			if (byte_to_lock > play_cursor) {
+				bytes_to_write = secondary_buffer_size - byte_to_lock;
+				bytes_to_write += play_cursor;
+			}
+			else {
+				bytes_to_write = play_cursor - byte_to_lock;
+			}
 
-		update();
-		render();
+			VOID *region1;
+			DWORD region1_size;
+			VOID *region2;
+			DWORD region2_size;
+
+			if (SUCCEEDED( IDirectSoundBuffer_Lock(global_sound_buffer,
+				byte_to_lock,
+				bytes_to_write,
+				&region1, &region1_size,
+				&region2, &region2_size,
+				0) )) {
+
+				i16 *sample_out = (i16 *)region1;
+				DWORD region1_sample_count = region1_size / bytes_per_sample;
+				for (DWORD sample_index = 0; sample_index < region1_sample_count; ++sample_index) {
+					i16 sample_value = ((running_sample_index++ / half_square_wave_period) % 2) ? tone_volume : -tone_volume;
+					*sample_out++ = sample_value;
+					*sample_out++ = sample_value;
+				}
+
+				sample_out = (i16 *)region2;
+				DWORD region2_sample_count = region2_size / bytes_per_sample;
+				for (DWORD sample_index = 0; sample_index < region2_sample_count; ++sample_index) {
+					i16 sample_value = ((running_sample_index++ / half_square_wave_period) % 2) ? tone_volume : -tone_volume;
+					*sample_out++ = sample_value;
+					*sample_out++ = sample_value;
+				}
+
+				IDirectSoundBuffer_Unlock(global_sound_buffer, region1, region1_size, region2, region2_size);
+			}
+		}
+
+		//update();
+		//render();
 
 		u64 end_cycle_count = __rdtsc();
 		LARGE_INTEGER end_counter;
