@@ -42,6 +42,7 @@ typedef struct Tag_Sound_Output {
 	int wave_period;
 	int bytes_per_sample;
 	int secondary_buffer_size;
+	int latency_sample_count;
 } Sound_Output;
 
 //
@@ -249,7 +250,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		} break;
 
 		default: {
-			result = DefWindowProc(w_handle, message, wparam, lparam);
+			result = DefWindowProcA(w_handle, message, wparam, lparam);
 		} break;
 	}
 
@@ -406,9 +407,10 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	sound_output.wave_period = sound_output.samples_per_second / sound_output.tone_hz;
 	sound_output.bytes_per_sample = sizeof(i16) * 2;
 	sound_output.secondary_buffer_size = sound_output.samples_per_second * sound_output.bytes_per_sample;
+	sound_output.latency_sample_count = sound_output.samples_per_second / 15;
 
 	init_direct_sound(global_window.handle, sound_output.secondary_buffer_size, sound_output.samples_per_second);
-	fill_sound_buffer(&sound_output, 0, sound_output.secondary_buffer_size);
+	fill_sound_buffer(&sound_output, 0, sound_output.latency_sample_count * sound_output.bytes_per_sample);
 	IDirectSoundBuffer_Play(global_sound_buffer, 0, 0, DSBPLAY_LOOPING);
 
 	while (!global_should_close) {
@@ -437,13 +439,14 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		DWORD write_cursor;
 		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(global_sound_buffer, &play_cursor, &write_cursor) )) {
 			DWORD byte_to_lock = (sound_output.running_sample_index * sound_output.bytes_per_sample) % sound_output.secondary_buffer_size;
+			DWORD target_cursor = (play_cursor + (sound_output.latency_sample_count * sound_output.bytes_per_sample)) % sound_output.secondary_buffer_size;
 			DWORD bytes_to_write;
-			if (byte_to_lock > play_cursor) {
+			if (byte_to_lock > target_cursor) {
 				bytes_to_write = sound_output.secondary_buffer_size - byte_to_lock;
-				bytes_to_write += play_cursor;
+				bytes_to_write += target_cursor;
 			}
 			else {
-				bytes_to_write = play_cursor - byte_to_lock;
+				bytes_to_write = target_cursor - byte_to_lock;
 			}
 
 			//if (!sound_is_playing) {
