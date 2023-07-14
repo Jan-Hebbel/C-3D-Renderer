@@ -34,7 +34,7 @@ Key_State get_key_state(Key_Code key_code) {
 	return keyboard_state[key_code];
 }
 
-void reset_keyboard_state() {
+void reset_keyboard_state(void) {
 	for (int i = 0; i < KEY_CODE_AMOUNT; ++i) {
 		Key_State zero = {0};
 		keyboard_state[i] = zero;

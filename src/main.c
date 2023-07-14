@@ -1,6 +1,6 @@
 #include "misc.h"
-
 #include "input.h"
+#include "my_math.h"
 
 #include <windows.h>
 #include <dsound.h>
@@ -44,6 +44,13 @@ typedef struct Tag_Sound_Output {
 	int secondary_buffer_size;
 	int latency_sample_count;
 } Sound_Output;
+
+typedef struct Tag_Vertex {
+	Vec3 position;
+	Vec3 normal;
+	Vec2 texcoord;
+	Vec4 color;
+} Vertex;
 
 //
 // globals
@@ -257,7 +264,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 	return result;
 }
 
-void platform_process_events() {
+void platform_process_events(void) {
 	Event_Reader event_reader = {0};
 
 	MSG message;
@@ -286,9 +293,9 @@ void platform_process_events() {
 					.alt_down = alt_down
 				};
 
-				// NOTE: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
+				// @note: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
 				// to move at the same time with a and w, use: while (vkCode == 'W' && !released)
-				// NOTE: to get only the first pressing of a button use: && is_down && !repeated
+				// @note: to get only the first pressing of a button use: && is_down && !repeated
 
 				switch (vk_code) {
 					case 'W': {
@@ -327,14 +334,6 @@ void platform_process_events() {
 			} break;
 		}
 	}
-}
-
-void update() {
-
-}
-
-void render() {
-	
 }
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line, int cmd_show) {
@@ -381,6 +380,33 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	if (!global_window.handle) {
 		return FAILURE;
 	}
+
+	// cube
+	Vertex vertices[] = {
+		{ .position = { 0, 0, 0 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
+		{ .position = { 1, 0, 0 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
+		{ .position = { 1, 0, 1 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
+		{ .position = { 0, 0, 1 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
+		{ .position = { 0, 1, 0 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
+		{ .position = { 1, 1, 0 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
+		{ .position = { 1, 1, 1 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
+		{ .position = { 0, 1, 1 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } }
+	};
+
+	u8 indices[] = { 
+		0, 1, 2,
+		0, 2, 3,
+		3, 2, 6,
+		3, 6, 7,
+		2, 1, 5,
+		2, 5, 6,
+		1, 0, 4,
+		1, 4, 5,
+		0, 3, 7,
+		0, 7, 4,
+		7, 6, 5,
+		7, 5, 4
+	};
 
 	//
 	// loop preparation
@@ -430,8 +456,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		if (get_key_state(D).is_down) {
 			blue_offset += 1;
 		}
-		render_weird_gradient(&global_backbuffer, blue_offset, green_offset);
 
+		render_weird_gradient(&global_backbuffer, blue_offset, green_offset);
 		copy_buffer_to_display(&global_backbuffer, device_context, global_window.canvas_width, global_window.canvas_height);
 
 		// @test
@@ -449,16 +475,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 				bytes_to_write = target_cursor - byte_to_lock;
 			}
 
-			//if (!sound_is_playing) {
-			//	bytes_to_write = sound_output.secondary_buffer_size;
-			//}
-
 			fill_sound_buffer(&sound_output, byte_to_lock, bytes_to_write);
 		}
 
-		//update();
-		//render();
-
+		//
+		// performance metrics
+		// 
 		u64 end_cycle_count = __rdtsc();
 		LARGE_INTEGER end_counter;
 		QueryPerformanceCounter(&end_counter);

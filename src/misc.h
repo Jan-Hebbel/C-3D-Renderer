@@ -6,6 +6,12 @@
 //
 // useful macros
 //
+#if _DEBUG
+#define ASSERT(x) if (!(x)) { *(int *)0 = 0; }
+#else
+#define ASSERT(x) 
+#endif
+
 #define SIZE(x) sizeof(x) / sizeof(x[0])
 
 //
