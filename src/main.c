@@ -5,6 +5,8 @@
 #include <windows.h>
 #include <dsound.h>
 
+#include <math.h>
+
 //
 // constants
 //
@@ -32,6 +34,16 @@ typedef struct Tag_Offscreen_Buffer {
 	int bytes_per_pixel;
 } Offscreen_Buffer;
 
+typedef struct Tag_Sound_Output {
+	int samples_per_second;
+	int tone_hz;
+	i16 tone_volume;
+	u32 running_sample_index;
+	int wave_period;
+	int bytes_per_sample;
+	int secondary_buffer_size;
+} Sound_Output;
+
 //
 // globals
 //
@@ -43,7 +55,7 @@ static LPDIRECTSOUNDBUFFER global_sound_buffer;
 #define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(Direct_Sound_Create);
 
-b8 InitDirectSound(HWND window, int buffer_size, int samples_per_second) {
+b8 init_direct_sound(HWND window, int buffer_size, int samples_per_second) {
 	// load the library
 	HMODULE dsound_library = LoadLibraryA("dsound.dll");
 	if (!dsound_library) {
@@ -98,6 +110,46 @@ b8 InitDirectSound(HWND window, int buffer_size, int samples_per_second) {
 	}
 
 	return M_TRUE;
+}
+
+void fill_sound_buffer(Sound_Output *sound_output, DWORD byte_to_lock, DWORD bytes_to_write) {
+	VOID *region1;
+	DWORD region1_size;
+	VOID *region2;
+	DWORD region2_size;
+	if (SUCCEEDED(IDirectSoundBuffer_Lock(global_sound_buffer,
+		byte_to_lock,
+		bytes_to_write,
+		&region1, &region1_size,
+		&region2, &region2_size,
+		0))) {
+
+		i16 *sample_out = (i16 *)region1;
+		DWORD region1_sample_count = region1_size / sound_output->bytes_per_sample;
+		for (DWORD sample_index = 0; sample_index < region1_sample_count; ++sample_index) {
+			f32 t = TAU * (f32)sound_output->running_sample_index / (f32)sound_output->wave_period;
+			f32 sin_value = sinf(t);
+			i16 sample_value = (i16)(sin_value * sound_output->tone_volume);
+			*sample_out++ = sample_value;
+			*sample_out++ = sample_value;
+
+			++sound_output->running_sample_index;
+		}
+
+		sample_out = (i16 *)region2;
+		DWORD region2_sample_count = region2_size / sound_output->bytes_per_sample;
+		for (DWORD sample_index = 0; sample_index < region2_sample_count; ++sample_index) {
+			f32 t = TAU * (f32)sound_output->running_sample_index / (f32)sound_output->wave_period;
+			f32 sin_value = sinf(t);
+			i16 sample_value = (i16)(sin_value * sound_output->tone_volume);
+			*sample_out++ = sample_value;
+			*sample_out++ = sample_value;
+
+			++sound_output->running_sample_index;
+		}
+
+		IDirectSoundBuffer_Unlock(global_sound_buffer, region1, region1_size, region2, region2_size);
+	}
 }
 
 void render_weird_gradient(Offscreen_Buffer *buffer, int blue_offset, int green_offset) {
@@ -347,15 +399,16 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	int blue_offset = 0;
 	int green_offset = 0;
 
-	int samples_per_second = 48000;
-	int tone_hz = 256;
-	i16 tone_volume = 200;
-	u32 running_sample_index = 0;
-	int half_square_wave_period = (samples_per_second / tone_hz) / 2;
-	int bytes_per_sample = sizeof(i16) * 2;
-	int secondary_buffer_size = samples_per_second * bytes_per_sample;
+	Sound_Output sound_output = {0};
+	sound_output.samples_per_second = 48000;
+	sound_output.tone_hz = 256;
+	sound_output.tone_volume = 2000;
+	sound_output.wave_period = sound_output.samples_per_second / sound_output.tone_hz;
+	sound_output.bytes_per_sample = sizeof(i16) * 2;
+	sound_output.secondary_buffer_size = sound_output.samples_per_second * sound_output.bytes_per_sample;
 
-	InitDirectSound(global_window.handle, secondary_buffer_size, samples_per_second);
+	init_direct_sound(global_window.handle, sound_output.secondary_buffer_size, sound_output.samples_per_second);
+	fill_sound_buffer(&sound_output, 0, sound_output.secondary_buffer_size);
 	IDirectSoundBuffer_Play(global_sound_buffer, 0, 0, DSBPLAY_LOOPING);
 
 	while (!global_should_close) {
@@ -383,46 +436,21 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		DWORD play_cursor;
 		DWORD write_cursor;
 		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(global_sound_buffer, &play_cursor, &write_cursor) )) {
-			DWORD byte_to_lock = running_sample_index * bytes_per_sample % secondary_buffer_size;
+			DWORD byte_to_lock = (sound_output.running_sample_index * sound_output.bytes_per_sample) % sound_output.secondary_buffer_size;
 			DWORD bytes_to_write;
 			if (byte_to_lock > play_cursor) {
-				bytes_to_write = secondary_buffer_size - byte_to_lock;
+				bytes_to_write = sound_output.secondary_buffer_size - byte_to_lock;
 				bytes_to_write += play_cursor;
 			}
 			else {
 				bytes_to_write = play_cursor - byte_to_lock;
 			}
 
-			VOID *region1;
-			DWORD region1_size;
-			VOID *region2;
-			DWORD region2_size;
+			//if (!sound_is_playing) {
+			//	bytes_to_write = sound_output.secondary_buffer_size;
+			//}
 
-			if (SUCCEEDED( IDirectSoundBuffer_Lock(global_sound_buffer,
-				byte_to_lock,
-				bytes_to_write,
-				&region1, &region1_size,
-				&region2, &region2_size,
-				0) )) {
-
-				i16 *sample_out = (i16 *)region1;
-				DWORD region1_sample_count = region1_size / bytes_per_sample;
-				for (DWORD sample_index = 0; sample_index < region1_sample_count; ++sample_index) {
-					i16 sample_value = ((running_sample_index++ / half_square_wave_period) % 2) ? tone_volume : -tone_volume;
-					*sample_out++ = sample_value;
-					*sample_out++ = sample_value;
-				}
-
-				sample_out = (i16 *)region2;
-				DWORD region2_sample_count = region2_size / bytes_per_sample;
-				for (DWORD sample_index = 0; sample_index < region2_sample_count; ++sample_index) {
-					i16 sample_value = ((running_sample_index++ / half_square_wave_period) % 2) ? tone_volume : -tone_volume;
-					*sample_out++ = sample_value;
-					*sample_out++ = sample_value;
-				}
-
-				IDirectSoundBuffer_Unlock(global_sound_buffer, region1, region1_size, region2, region2_size);
-			}
+			fill_sound_buffer(&sound_output, byte_to_lock, bytes_to_write);
 		}
 
 		//update();

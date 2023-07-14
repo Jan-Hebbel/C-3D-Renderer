@@ -23,6 +23,9 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+typedef float  f32;
+typedef double f64;
+
 //
 // other defines
 //
@@ -30,5 +33,7 @@ typedef uint64_t u64;
 #define M_FALSE 0
 #define SUCCESS 0
 #define FAILURE 1
+
+#define TAU 6.28318530718f
 
 #endif
