@@ -12,8 +12,8 @@
 //
 #define WIDTH    1024
 #define HEIGHT   1024
-#define PIXELS_X 64
-#define PIXELS_Y 64
+#define PIXELS_X 128
+#define PIXELS_Y 128
 
 //
 // structures
@@ -163,14 +163,14 @@ void fill_sound_buffer(Sound_Output *sound_output, DWORD byte_to_lock, DWORD byt
 }
 
 void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vec2I v1, Vec2I v2, Vec2I v3) {
-    int x_min = MIN(MIN(v1.x, v2.x), v3.x);
-    int y_min = MIN(MIN(v1.y, v2.y), v3.y);
-    int x_max = MIN(MAX(MAX(v1.x, v2.x), v3.x), buffer->width);
-    int y_max = MIN(MAX(MAX(v1.y, v2.y), v3.y), buffer->height);
+    int x_min = MAX(MIN(MIN(v1.x, v2.x), v3.x), 0);
+    int y_min = MAX(MIN(MIN(v1.y, v2.y), v3.y), 0);
+    int x_max = MIN(MAX(MAX(v1.x, v2.x), v3.x), buffer->width-1);
+    int y_max = MIN(MAX(MAX(v1.y, v2.y), v3.y), buffer->height-1);
     
     u32 *pixel = (u32 *)buffer->memory;
-    for (int y = y_min; y < y_max; ++y) {
-        for (int x = x_min; x < x_max; ++x) {
+    for (int y = y_min; y <= y_max; ++y) {
+        for (int x = x_min; x <= x_max; ++x) {
             Vec2I p = { .x = x, .y = y };
             
             Vec3I crossv2p = icross(vec3i_make(p.x - v1.x, p.y - v1.y, 0), vec3i_make(v2.x - v1.x, v2.y - v1.y, 0));
@@ -456,31 +456,31 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	fill_sound_buffer(&sound_output, 0, sound_output.latency_sample_count * sound_output.bytes_per_sample);
 	IDirectSoundBuffer_Play(global_sound_buffer, 0, 0, DSBPLAY_LOOPING);
 
+    Vec2I vertices[] = {
+        { .x =  64, .y = 20 },
+        { .x = 110, .y = 64 },
+        { .x =  30, .y = 90 }
+    };
+
 	while (!global_should_close) {
         float delta_time = (float)frame_time / 1000.0f;
 
 		platform_process_events();
 
-		if (get_key_state(W).is_down) {
-			green_offset -= 1;
-		}
-		if (get_key_state(A).is_down) {
-			blue_offset -= 1;
-		}
-		if (get_key_state(S).is_down) {
-			green_offset += 1;
-		}
-		if (get_key_state(D).is_down) {
-			blue_offset += 1;
-		}
-
         ClearFramebuffer(&global_backbuffer, 0x222244);
         
-        Vec2I vertices[] = {
-            { .x = 10,  .y = 10 },
-            { .x = 120, .y = 20 },
-            { .x = 30,  .y = 99 }
-        };
+        if (get_key_state(W).is_down) {
+			vertices[2].y -= 1;
+		}
+		if (get_key_state(A).is_down) {
+			vertices[2].x -= 1;
+		}
+		if (get_key_state(S).is_down) {
+			vertices[2].y += 1;
+		}
+		if (get_key_state(D).is_down) {
+			vertices[2].x += 1;
+		}
         RenderTriangleToBuffer(&global_backbuffer, vertices[0], vertices[1], vertices[2]);
         CopyBufferToDisplay(&global_backbuffer, device_context, global_window.client_width, global_window.client_height);
 
