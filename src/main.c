@@ -12,8 +12,8 @@
 //
 #define WIDTH    1024
 #define HEIGHT   1024
-#define PIXELS_X 128
-#define PIXELS_Y 128
+#define PIXELS_X 64
+#define PIXELS_Y 64
 
 //
 // structures
@@ -165,8 +165,8 @@ void fill_sound_buffer(Sound_Output *sound_output, DWORD byte_to_lock, DWORD byt
 void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vec2I v1, Vec2I v2, Vec2I v3) {
     int x_min = MIN(MIN(v1.x, v2.x), v3.x);
     int y_min = MIN(MIN(v1.y, v2.y), v3.y);
-    int x_max = MAX(MAX(v1.x, v2.x), v3.x);
-    int y_max = MAX(MAX(v1.y, v2.y), v3.y);
+    int x_max = MIN(MAX(MAX(v1.x, v2.x), v3.x), buffer->width);
+    int y_max = MIN(MAX(MAX(v1.y, v2.y), v3.y), buffer->height);
     
     u32 *pixel = (u32 *)buffer->memory;
     for (int y = y_min; y < y_max; ++y) {
@@ -184,7 +184,7 @@ void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vec2I v1, Vec2I v2, Vec2I 
 			b8 inside_triangle = p_right_of_v1 && p_right_of_v2 && p_right_of_v3;
 
             if (inside_triangle) {
-                pixel[x + y * buffer->width] = 0x49c44d;
+				pixel[x + y * buffer->width] = 0x49c44d;
             }
         }
     }
