@@ -6,13 +6,16 @@
 //
 // useful macros
 //
-#if _DEBUG
+#if DEBUG
 #define ASSERT(x) if (!(x)) { *(int *)0 = 0; }
 #else
 #define ASSERT(x) 
 #endif
 
 #define SIZE(x) sizeof(x) / sizeof(x[0])
+
+#define MIN(x, y) ((x) < (y)) ? (x) : (y)
+#define MAX(x, y) ((x) > (y)) ? (x) : (y)
 
 //
 // types

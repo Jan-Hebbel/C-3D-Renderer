@@ -10,8 +10,10 @@
 //
 // constants
 //
-const int WIDTH = 1280;
-const int HEIGHT = 720;
+#define WIDTH    1024
+#define HEIGHT   1024
+#define PIXELS_X 128
+#define PIXELS_Y 128
 
 //
 // structures
@@ -21,8 +23,8 @@ typedef struct Tag_Window {
 	int height;
 	HINSTANCE instance;
 	HWND handle;
-	int canvas_width;
-	int canvas_height;
+	int client_width;
+	int client_height;
 } Window;
 
 typedef struct Tag_Offscreen_Buffer {
@@ -174,16 +176,55 @@ void render_weird_gradient(Offscreen_Buffer *buffer, int blue_offset, int green_
 	}
 }
 
-void resize_dib_section(Offscreen_Buffer *buffer, int width, int height) {
-	if (buffer->memory) {
-		VirtualFree(buffer->memory, 0, MEM_RELEASE);
-	}
+void RenderTriangle(Offscreen_Buffer *buffer, Vec2I v1, Vec2I v2, Vec2I v3) {
+    int x_min = MIN(MIN(v1.x, v2.x), v3.x);
+    int y_min = MIN(MIN(v1.y, v2.y), v3.y);
+    int x_max = MAX(MAX(v1.x, v2.x), v3.x);
+    int y_max = MAX(MAX(v1.y, v2.y), v3.y);
+    
+    u32 *pixel = (u32 *)buffer->memory;
+    for (int y = y_min; y < y_max; ++y) {
+        for (int x = x_min; x < x_max; ++x) {
+            Vec2I p = { .x = x, .y = y };
+            
+            Vec3I crossv2p = icross(vec3i_make(p.x - v1.x, p.y - v1.y, 0), vec3i_make(v2.x - v1.x, v2.y - v1.y, 0));
+            Vec3I crossv3p = icross(vec3i_make(p.x - v2.x, p.y - v2.y, 0), vec3i_make(v3.x - v2.x, v3.y - v2.y, 0));
+            Vec3I crossv1p = icross(vec3i_make(p.x - v3.x, p.y - v3.y, 0), vec3i_make(v1.x - v3.x, v1.y - v3.y, 0));
+            
+            b8 p_right_of_v1 = crossv1p.z <= 0;
+            b8 p_right_of_v2 = crossv2p.z <= 0;
+            b8 p_right_of_v3 = crossv3p.z <= 0; 
+            
+			b8 inside_triangle = p_right_of_v1 && p_right_of_v2 && p_right_of_v3;
 
-	buffer->width  = width;
-	buffer->height = height;
-	buffer->bytes_per_pixel = 4;
+            if (inside_triangle) {
+                pixel[x + y * buffer->width] = 0xFF0000;
+            }
+        }
+    }
+}
 
-	buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
+void ClearFramebuffer(Offscreen_Buffer *buffer, u32 color) {
+    if (!buffer->memory) return;
+    
+    int bitmap_size = buffer->width * buffer->height;
+    
+    u32 *pixel = (u32 *)buffer->memory;
+    for (int i = 0; i < bitmap_size; ++i) {
+        pixel[i] = color;
+    }
+}
+
+void CreateFramebuffer(Offscreen_Buffer *buffer, int width, int height) {
+    if (buffer->memory) {
+        return;
+    }
+    
+    buffer->width  = width;
+    buffer->height = height;
+    buffer->bytes_per_pixel = 4;
+
+    buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
 	buffer->info.bmiHeader.biWidth = buffer->width;
 	buffer->info.bmiHeader.biHeight = -buffer->height; // '-' becaues I want top down dib (origin at top left corner)
 	buffer->info.bmiHeader.biPlanes = 1;
@@ -198,9 +239,9 @@ void resize_dib_section(Offscreen_Buffer *buffer, int width, int height) {
 	int bitmap_memory_size = buffer->bytes_per_pixel * buffer->width * buffer->height;
 	buffer->memory = VirtualAlloc(NULL, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	// @todo: probably clear to black
-
 	buffer->pitch = buffer->width * buffer->bytes_per_pixel;
+
+	ClearFramebuffer(buffer, 0);
 }
 
 void copy_buffer_to_display(Offscreen_Buffer *buffer, HDC device_context, int canvas_width, int canvas_height) {
@@ -219,8 +260,8 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 
 	switch (message) {
 		case WM_SIZE: {
-			global_window.canvas_width = LOWORD(lparam);
-			global_window.canvas_height = HIWORD(lparam);
+			global_window.client_width = LOWORD(lparam);
+			global_window.client_height = HIWORD(lparam);
 		} break;
 
 		case WM_CLOSE: {
@@ -262,6 +303,54 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 	}
 
 	return result;
+}
+
+b8 PlatformCreateWindow(HINSTANCE instance, int width, int height, const char *title) {
+    global_window.client_width  = width;
+    global_window.client_height = height;
+	global_window.instance = instance;
+
+    RECT rect = {0};
+    rect.right  = width;
+    rect.left   = 0;
+    rect.bottom = height;
+    rect.top    = 0;
+    if (!AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW | WS_VISIBLE, 0)) {
+        return M_FALSE;
+    }
+    
+    global_window.width = rect.right - rect.left;
+	global_window.height = rect.bottom - rect.top;
+
+	WNDCLASSA w_class = {0};
+	w_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+	w_class.lpfnWndProc = main_window_callback;
+	w_class.hInstance = instance;
+	w_class.hCursor = LoadCursor(0, IDC_ARROW);
+	//w_class.hIcon = ;
+	w_class.lpszClassName = "3drendererwindowclass";
+
+	if (!RegisterClassA(&w_class)) {
+		return M_FALSE;
+	}
+
+	global_window.handle = CreateWindowExA(
+		0,
+		w_class.lpszClassName,
+		title,
+		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+		100, 100,
+		global_window.width, global_window.height,
+		0,
+		0,
+		w_class.hInstance,
+		0);
+
+	if (!global_window.handle) {
+		return M_FALSE;
+	}
+	
+	return M_TRUE;
 }
 
 void platform_process_events(void) {
@@ -344,69 +433,11 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	QueryPerformanceFrequency(&perf_count_frequency_result);
 	i64 perf_count_frequency = perf_count_frequency_result.QuadPart;
 
-	//
-	// create window
-	//
-	global_window.width = WIDTH;
-	global_window.height = HEIGHT;
-	global_window.instance = instance;
-
-	resize_dib_section(&global_backbuffer, global_window.width, global_window.height);
-
-	WNDCLASSA w_class = {0};
-	w_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-	w_class.lpfnWndProc = main_window_callback;
-	w_class.hInstance = instance;
-	w_class.hCursor = LoadCursor(0, IDC_ARROW);
-	//w_class.hIcon = ;
-	w_class.lpszClassName = "3drendererwindowclass";
-
-	if (!RegisterClassA(&w_class)) {
-		return FAILURE;
-	}
-
-	global_window.handle = CreateWindowExA(
-		0,
-		w_class.lpszClassName,
-		"3drenderer",
-		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		100, 100,
-		global_window.width, global_window.height,
-		0,
-		0,
-		w_class.hInstance,
-		0);
-
-	if (!global_window.handle) {
-		return FAILURE;
-	}
-
-	// cube
-	Vertex vertices[] = {
-		{ .position = { 0, 0, 0 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
-		{ .position = { 1, 0, 0 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
-		{ .position = { 1, 0, 1 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
-		{ .position = { 0, 0, 1 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
-		{ .position = { 0, 1, 0 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
-		{ .position = { 1, 1, 0 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
-		{ .position = { 1, 1, 1 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } },
-		{ .position = { 0, 1, 1 }, .normal = {0}, .texcoord = {0}, .color = { 0.4f, 0.0f, 0.0f, 0.0f } }
-	};
-
-	u8 indices[] = { 
-		0, 1, 2,
-		0, 2, 3,
-		3, 2, 6,
-		3, 6, 7,
-		2, 1, 5,
-		2, 5, 6,
-		1, 0, 4,
-		1, 4, 5,
-		0, 3, 7,
-		0, 7, 4,
-		7, 6, 5,
-		7, 5, 4
-	};
+    if (!PlatformCreateWindow(instance, WIDTH, HEIGHT, "3D Software Renderer")) {
+        return FAILURE;
+    }
+    
+   	CreateFramebuffer(&global_backbuffer, PIXELS_X, PIXELS_Y);
 
 	//
 	// loop preparation
@@ -440,7 +471,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	IDirectSoundBuffer_Play(global_sound_buffer, 0, 0, DSBPLAY_LOOPING);
 
 	while (!global_should_close) {
-		float delta_time = (float)frame_time / 1000.0f;
+        float delta_time = (float)frame_time / 1000.0f;
 
 		platform_process_events();
 
@@ -457,8 +488,25 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 			blue_offset += 1;
 		}
 
-		render_weird_gradient(&global_backbuffer, blue_offset, green_offset);
-		copy_buffer_to_display(&global_backbuffer, device_context, global_window.canvas_width, global_window.canvas_height);
+        ClearFramebuffer(&global_backbuffer, 0);
+        //render_weird_gradient(&global_backbuffer, blue_offset, green_offset);
+        //Vec2I vertices[] = {
+        //    { .x = 10, .y =  2 },
+        //    { .x = 20, .y = 20 },
+        //    { .x =  3, .y = 21 }
+        //};
+        //Vec2I vertices[] = {
+        //    { .x = 0, .y = 0 },
+        //    { .x = 1, .y = 4 },
+        //    { .x = 4, .y = 2 }
+        //};
+        Vec2I vertices[] = {
+            { .x = 10,  .y = 10 },
+            { .x = 120, .y = 20 },
+            { .x = 30,  .y = 99 }
+        };
+        RenderTriangle(&global_backbuffer, vertices[0], vertices[1], vertices[2]);
+        copy_buffer_to_display(&global_backbuffer, device_context, global_window.client_width, global_window.client_height);
 
 		// @test
 		DWORD play_cursor;
