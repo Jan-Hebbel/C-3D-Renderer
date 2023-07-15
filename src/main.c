@@ -162,21 +162,7 @@ void fill_sound_buffer(Sound_Output *sound_output, DWORD byte_to_lock, DWORD byt
 	}
 }
 
-void render_weird_gradient(Offscreen_Buffer *buffer, int blue_offset, int green_offset) {
-	u8 *row = (u8 *)buffer->memory;
-	for (int y = 0; y < buffer->height; ++y) {
-		u32 *pixel = (u32 *)row;
-		for (int x = 0; x < buffer->width; ++x) {
-			u8 blue  = x + blue_offset;
-			u8 green = y + green_offset;
-
-			*pixel++ = (green << 8) | blue;
-		}
-		row += buffer->pitch;
-	}
-}
-
-void RenderTriangle(Offscreen_Buffer *buffer, Vec2I v1, Vec2I v2, Vec2I v3) {
+void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vec2I v1, Vec2I v2, Vec2I v3) {
     int x_min = MIN(MIN(v1.x, v2.x), v3.x);
     int y_min = MIN(MIN(v1.y, v2.y), v3.y);
     int x_max = MAX(MAX(v1.x, v2.x), v3.x);
@@ -198,7 +184,7 @@ void RenderTriangle(Offscreen_Buffer *buffer, Vec2I v1, Vec2I v2, Vec2I v3) {
 			b8 inside_triangle = p_right_of_v1 && p_right_of_v2 && p_right_of_v3;
 
             if (inside_triangle) {
-                pixel[x + y * buffer->width] = 0xFF0000;
+                pixel[x + y * buffer->width] = 0x49c44d;
             }
         }
     }
@@ -244,7 +230,7 @@ void CreateFramebuffer(Offscreen_Buffer *buffer, int width, int height) {
 	ClearFramebuffer(buffer, 0);
 }
 
-void copy_buffer_to_display(Offscreen_Buffer *buffer, HDC device_context, int canvas_width, int canvas_height) {
+void CopyBufferToDisplay(Offscreen_Buffer *buffer, HDC device_context, int canvas_width, int canvas_height) {
 	// @todo: aspect ratio correction
 	StretchDIBits(
 		device_context,
@@ -286,7 +272,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			HDC device_context = BeginPaint(w_handle, &paint);
 			int width = paint.rcPaint.right - paint.rcPaint.left;
 			int height = paint.rcPaint.bottom - paint.rcPaint.top;
-			copy_buffer_to_display(&global_backbuffer, device_context, width, height);
+			CopyBufferToDisplay(&global_backbuffer, device_context, width, height);
 			EndPaint(w_handle, &paint);
 		} break;
 
@@ -488,25 +474,15 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 			blue_offset += 1;
 		}
 
-        ClearFramebuffer(&global_backbuffer, 0);
-        //render_weird_gradient(&global_backbuffer, blue_offset, green_offset);
-        //Vec2I vertices[] = {
-        //    { .x = 10, .y =  2 },
-        //    { .x = 20, .y = 20 },
-        //    { .x =  3, .y = 21 }
-        //};
-        //Vec2I vertices[] = {
-        //    { .x = 0, .y = 0 },
-        //    { .x = 1, .y = 4 },
-        //    { .x = 4, .y = 2 }
-        //};
+        ClearFramebuffer(&global_backbuffer, 0x222244);
+        
         Vec2I vertices[] = {
             { .x = 10,  .y = 10 },
             { .x = 120, .y = 20 },
             { .x = 30,  .y = 99 }
         };
-        RenderTriangle(&global_backbuffer, vertices[0], vertices[1], vertices[2]);
-        copy_buffer_to_display(&global_backbuffer, device_context, global_window.client_width, global_window.client_height);
+        RenderTriangleToBuffer(&global_backbuffer, vertices[0], vertices[1], vertices[2]);
+        CopyBufferToDisplay(&global_backbuffer, device_context, global_window.client_width, global_window.client_height);
 
 		// @test
 		DWORD play_cursor;
