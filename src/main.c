@@ -162,29 +162,40 @@ void fill_sound_buffer(Sound_Output *sound_output, DWORD byte_to_lock, DWORD byt
 	}
 }
 
-void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vec2I v1, Vec2I v2, Vec2I v3) {
-    int x_min = MAX(MIN(MIN(v1.x, v2.x), v3.x), 0);
-    int y_min = MAX(MIN(MIN(v1.y, v2.y), v3.y), 0);
-    int x_max = MIN(MAX(MAX(v1.x, v2.x), v3.x), buffer->width-1);
-    int y_max = MIN(MAX(MAX(v1.y, v2.y), v3.y), buffer->height-1);
+inline b8 IsTopLeft(Vec2I edge) {
+    return edge.y < 0 || (edge.x > 0 && edge.y == 0);
+}
+
+int EdgeCross(Vec2I minuend0, Vec2I minuend1, Vec2I subtrahend) {
+    Vec2I difference0 = vec2i_sub(minuend0, subtrahend);
+    Vec2I difference1 = vec2i_sub(minuend1, subtrahend);
+    
+    return difference0.x * difference1.y - difference0.y * difference1.x;
+}
+
+void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vec2I v0, Vec2I v1, Vec2I v2, u32 color) {
+    int x_min = MAX(MIN(MIN(v0.x, v1.x), v2.x), 0);
+    int y_min = MAX(MIN(MIN(v0.y, v1.y), v2.y), 0);
+    int x_max = MIN(MAX(MAX(v0.x, v1.x), v2.x), buffer->width-1);
+    int y_max = MIN(MAX(MAX(v0.y, v1.y), v2.y), buffer->height-1);
+    
+    int bias0 = IsTopLeft(vec2i_sub(v1, v0)) ? 0 : -1;
+    int bias1 = IsTopLeft(vec2i_sub(v2, v1)) ? 0 : -1;
+    int bias2 = IsTopLeft(vec2i_sub(v0, v2)) ? 0 : -1;
     
     u32 *pixel = (u32 *)buffer->memory;
     for (int y = y_min; y <= y_max; ++y) {
         for (int x = x_min; x <= x_max; ++x) {
             Vec2I p = { .x = x, .y = y };
             
-            Vec3I crossv2p = icross(vec3i_make(p.x - v1.x, p.y - v1.y, 0), vec3i_make(v2.x - v1.x, v2.y - v1.y, 0));
-            Vec3I crossv3p = icross(vec3i_make(p.x - v2.x, p.y - v2.y, 0), vec3i_make(v3.x - v2.x, v3.y - v2.y, 0));
-            Vec3I crossv1p = icross(vec3i_make(p.x - v3.x, p.y - v3.y, 0), vec3i_make(v1.x - v3.x, v1.y - v3.y, 0));
+            int w0 = EdgeCross(v1, p, v0) + bias0;
+            int w1 = EdgeCross(v2, p, v1) + bias1;
+            int w2 = EdgeCross(v0, p, v2) + bias2;
             
-            b8 p_right_of_v1 = crossv1p.z <= 0;
-            b8 p_right_of_v2 = crossv2p.z <= 0;
-            b8 p_right_of_v3 = crossv3p.z <= 0; 
+            b8 inside_triangle = w0 >= 0 && w1 >= 0 && w2 >= 0;
             
-			b8 inside_triangle = p_right_of_v1 && p_right_of_v2 && p_right_of_v3;
-
             if (inside_triangle) {
-				pixel[x + y * buffer->width] = 0x49c44d;
+				pixel[x + y * buffer->width] = color;
             }
         }
     }
@@ -392,6 +403,10 @@ void platform_process_events(void) {
 					case VK_ESCAPE: {
 						process_key_event(ESCAPE, key_state, &event_reader);
 					} break;
+					
+					case VK_SPACE: {
+					   process_key_event(SPACE, key_state, &event_reader);
+					} break;
 
 					case VK_F4: {
 						if (alt_down) global_should_close = M_TRUE;
@@ -456,10 +471,34 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 	fill_sound_buffer(&sound_output, 0, sound_output.latency_sample_count * sound_output.bytes_per_sample);
 	IDirectSoundBuffer_Play(global_sound_buffer, 0, 0, DSBPLAY_LOOPING);
 
+    Vec3I pyramid[] = {
+        {  0, 0,  1 },
+        { -1, 0, -1 },
+        {  1, 0, -1 },
+        
+        {  0, 0,  1 },
+        {  0, 2,  0 },
+        { -1, 0, -1 },
+        
+        { -1, 0, -1 },
+        {  0, 2,  0 },
+        {  1, 0, -1 },
+        
+        {  1, 0, -1 },
+        {  0, 2,  0 },
+        {  0, 0,  1 }
+    };
+    
     Vec2I vertices[] = {
-        { .x =  64, .y = 20 },
-        { .x = 110, .y = 64 },
-        { .x =  30, .y = 90 }
+        { 10, 10 },
+        { 110, 8 },
+        { 30, 90 }
+    };
+    
+    Vec2I triangle1[] = {
+        { 110, 8 },
+        { 120, 120 },
+        { 30,  90 }
     };
 
 	while (!global_should_close) {
@@ -467,21 +506,26 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 
 		platform_process_events();
 
-        ClearFramebuffer(&global_backbuffer, 0x222244);
+        ClearFramebuffer(&global_backbuffer, 0x222222);
         
-        if (get_key_state(W).is_down) {
-			vertices[2].y -= 1;
-		}
-		if (get_key_state(A).is_down) {
-			vertices[2].x -= 1;
-		}
-		if (get_key_state(S).is_down) {
-			vertices[2].y += 1;
-		}
-		if (get_key_state(D).is_down) {
-			vertices[2].x += 1;
-		}
-        RenderTriangleToBuffer(&global_backbuffer, vertices[0], vertices[1], vertices[2]);
+        //if (get_key_state(W).is_down) {
+		//	vertices[2].y -= 1;
+		//}
+		//if (get_key_state(A).is_down) {
+		//	vertices[2].x -= 1;
+		//}
+		//if (get_key_state(S).is_down) {
+		//	vertices[2].y += 1;
+		//}
+		//if (get_key_state(D).is_down) {
+		//	vertices[2].x += 1;
+		//}
+        if (!get_key_state(W).is_down) {
+            RenderTriangleToBuffer(&global_backbuffer, vertices[0], vertices[1], vertices[2], 0x49c44d);
+        }
+        if (!get_key_state(S).is_down) {
+            RenderTriangleToBuffer(&global_backbuffer, triangle1[0], triangle1[1], triangle1[2], 0xe37e44);
+        }
         CopyBufferToDisplay(&global_backbuffer, device_context, global_window.client_width, global_window.client_height);
 
 		// @test

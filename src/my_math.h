@@ -85,6 +85,13 @@ Vec2 vec2_normalize(Vec2 v) {
 	return result;
 }
 
+inline Vec2I vec2i_sub(Vec2I v1, Vec2I v2) {
+    Vec2I result;
+    result.x = v1.x - v2.x;
+    result.y = v1.y - v2.y;
+    return result;
+}
+
 inline Vec3I vec3i_sub(Vec3I v1, Vec3I v2) {
     Vec3I result;
     result.x = v1.x - v2.x;
