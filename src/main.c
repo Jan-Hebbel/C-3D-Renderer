@@ -187,15 +187,21 @@ void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vertex v0, Vertex v1, Vert
     
     int area = EdgeCross(v1.position, v2.position, v0.position);
     
+    Vec2I p_start = { x_min, y_min };
+    int w0 = EdgeCross(v2.position, p_start, v1.position) + bias0;
+    int w1 = EdgeCross(v0.position, p_start, v2.position) + bias1;
+    int w2 = EdgeCross(v1.position, p_start, v0.position) + bias2;
+    
+    int delta_w0_x = v1.position.y - v2.position.y;
+    int delta_w1_x = v2.position.y - v0.position.y;
+    int delta_w2_x = v0.position.y - v1.position.y;
+    int delta_w0_y = (v2.position.x - v1.position.x) + ((x_min - x_max) * (v1.position.y - v2.position.y));
+    int delta_w1_y = (v0.position.x - v2.position.x) + ((x_min - x_max) * (v2.position.y - v0.position.y));
+    int delta_w2_y = (v1.position.x - v0.position.x) + ((x_min - x_max) * (v0.position.y - v1.position.y));
+    
     u32 *pixel = (u32 *)buffer->memory;
     for (int y = y_min; y <= y_max; ++y) {
         for (int x = x_min; x <= x_max; ++x) {
-            Vec2I p = { .x = x, .y = y };
-            
-            int w0 = EdgeCross(v2.position, p, v1.position) + bias0;
-            int w1 = EdgeCross(v0.position, p, v2.position) + bias1;
-            int w2 = EdgeCross(v1.position, p, v0.position) + bias2;
-            
             b8 inside_triangle = w0 >= 0 && w1 >= 0 && w2 >= 0;
             
             if (inside_triangle) {
@@ -208,9 +214,18 @@ void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vertex v0, Vertex v1, Vert
                 u32 g = (u32)(alpha * v0.color.g + beta * v1.color.g + gamma * v2.color.g);
                 u32 b = (u32)(alpha * v0.color.b + beta * v1.color.b + gamma * v2.color.b);
                 
-				pixel[x + y * buffer->width] = a << 24 | r << 16 | g << 8 | b;
+                pixel[x + y * buffer->width] = a << 24 | r << 16 | g << 8 | b;
             }
+            
+            if (x == x_max) continue; // @note: this is needed because else the w_s are off by 1 * delta_w[0,1,2]_x for the rest of the loop
+            w0 += delta_w0_x;
+            w1 += delta_w1_x;
+            w2 += delta_w2_x;
         }
+        
+        w0 += delta_w0_y;
+        w1 += delta_w1_y;
+        w2 += delta_w2_y;
     }
 }
 
