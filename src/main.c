@@ -47,31 +47,13 @@ typedef struct Tag_Sound_Output {
 	int latency_sample_count;
 } Sound_Output;
 
-typedef struct {
-    u8 r;
-    u8 g;
-    u8 b;
-} Color;
-
-inline Color color_scale(Color color, float scale) {
-    Color result;
-    result.r = (u8)(color.r * scale);
-    result.g = (u8)(color.g * scale);
-    result.b = (u8)(color.b * scale);
-    return result;
-}
-
-inline Color color_add(Color c1, Color c2) {
-    Color result;
-    result.r = c1.r + c2.r;
-    result.g = c1.g + c2.g;
-    result.b = c1.b + c2.b;
-    return result;
-}
-
 typedef struct Tag_Vertex {
 	Vec2I position;
-	Color color;
+	struct {
+	   u8 r;
+	   u8 g;
+	   u8 b;
+	} color;
 } Vertex;
 
 //
@@ -214,16 +196,19 @@ void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vertex v0, Vertex v1, Vert
             int w1 = EdgeCross(v0.position, p, v2.position) + bias1;
             int w2 = EdgeCross(v1.position, p, v0.position) + bias2;
             
-            float alpha = (float)w0 / (float)area;
-            float beta  = (float)w1 / (float)area;
-            float gamma = (float)w2 / (float)area;
-            
             b8 inside_triangle = w0 >= 0 && w1 >= 0 && w2 >= 0;
             
-            Color final_color = color_add(color_add(color_scale(v0.color, alpha), color_scale(v1.color, beta)), color_scale(v2.color, gamma));
-            
             if (inside_triangle) {
-				pixel[x + y * buffer->width] = final_color.r << 16 | final_color.g << 8 | final_color.b;
+                float alpha = (float)w0 / (float)area;
+                float beta  = (float)w1 / (float)area;
+                float gamma = (float)w2 / (float)area;
+                
+                u32 a = 0xFF;
+                u32 r = (u32)(alpha * v0.color.r + beta * v1.color.r + gamma * v2.color.r);
+                u32 g = (u32)(alpha * v0.color.g + beta * v1.color.g + gamma * v2.color.g);
+                u32 b = (u32)(alpha * v0.color.b + beta * v1.color.b + gamma * v2.color.b);
+                
+				pixel[x + y * buffer->width] = a << 24 | r << 16 | g << 8 | b;
             }
         }
     }
