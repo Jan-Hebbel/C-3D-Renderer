@@ -47,11 +47,31 @@ typedef struct Tag_Sound_Output {
 	int latency_sample_count;
 } Sound_Output;
 
+typedef struct {
+    u8 r;
+    u8 g;
+    u8 b;
+} Color;
+
+inline Color color_scale(Color color, float scale) {
+    Color result;
+    result.r = (u8)(color.r * scale);
+    result.g = (u8)(color.g * scale);
+    result.b = (u8)(color.b * scale);
+    return result;
+}
+
+inline Color color_add(Color c1, Color c2) {
+    Color result;
+    result.r = c1.r + c2.r;
+    result.g = c1.g + c2.g;
+    result.b = c1.b + c2.b;
+    return result;
+}
+
 typedef struct Tag_Vertex {
-	Vec3 position;
-	Vec3 normal;
-	Vec2 texcoord;
-	Vec4 color;
+	Vec2I position;
+	Color color;
 } Vertex;
 
 //
@@ -173,29 +193,37 @@ int EdgeCross(Vec2I minuend0, Vec2I minuend1, Vec2I subtrahend) {
     return difference0.x * difference1.y - difference0.y * difference1.x;
 }
 
-void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vec2I v0, Vec2I v1, Vec2I v2, u32 color) {
-    int x_min = MAX(MIN(MIN(v0.x, v1.x), v2.x), 0);
-    int y_min = MAX(MIN(MIN(v0.y, v1.y), v2.y), 0);
-    int x_max = MIN(MAX(MAX(v0.x, v1.x), v2.x), buffer->width-1);
-    int y_max = MIN(MAX(MAX(v0.y, v1.y), v2.y), buffer->height-1);
+void RenderTriangleToBuffer(Offscreen_Buffer *buffer, Vertex v0, Vertex v1, Vertex v2) {
+    int x_min = MAX(MIN(MIN(v0.position.x, v1.position.x), v2.position.x), 0);
+    int y_min = MAX(MIN(MIN(v0.position.y, v1.position.y), v2.position.y), 0);
+    int x_max = MIN(MAX(MAX(v0.position.x, v1.position.x), v2.position.x), buffer->width-1);
+    int y_max = MIN(MAX(MAX(v0.position.y, v1.position.y), v2.position.y), buffer->height-1);
     
-    int bias0 = IsTopLeft(vec2i_sub(v1, v0)) ? 0 : -1;
-    int bias1 = IsTopLeft(vec2i_sub(v2, v1)) ? 0 : -1;
-    int bias2 = IsTopLeft(vec2i_sub(v0, v2)) ? 0 : -1;
+    int bias0 = IsTopLeft(vec2i_sub(v2.position, v1.position)) ? 0 : -1;
+    int bias1 = IsTopLeft(vec2i_sub(v0.position, v2.position)) ? 0 : -1;
+    int bias2 = IsTopLeft(vec2i_sub(v1.position, v0.position)) ? 0 : -1;
+    
+    int area = EdgeCross(v1.position, v2.position, v0.position);
     
     u32 *pixel = (u32 *)buffer->memory;
     for (int y = y_min; y <= y_max; ++y) {
         for (int x = x_min; x <= x_max; ++x) {
             Vec2I p = { .x = x, .y = y };
             
-            int w0 = EdgeCross(v1, p, v0) + bias0;
-            int w1 = EdgeCross(v2, p, v1) + bias1;
-            int w2 = EdgeCross(v0, p, v2) + bias2;
+            int w0 = EdgeCross(v2.position, p, v1.position) + bias0;
+            int w1 = EdgeCross(v0.position, p, v2.position) + bias1;
+            int w2 = EdgeCross(v1.position, p, v0.position) + bias2;
+            
+            float alpha = (float)w0 / (float)area;
+            float beta  = (float)w1 / (float)area;
+            float gamma = (float)w2 / (float)area;
             
             b8 inside_triangle = w0 >= 0 && w1 >= 0 && w2 >= 0;
             
+            Color final_color = color_add(color_add(color_scale(v0.color, alpha), color_scale(v1.color, beta)), color_scale(v2.color, gamma));
+            
             if (inside_triangle) {
-				pixel[x + y * buffer->width] = color;
+				pixel[x + y * buffer->width] = final_color.r << 16 | final_color.g << 8 | final_color.b;
             }
         }
     }
@@ -489,16 +517,16 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
         {  0, 0,  1 }
     };
     
-    Vec2I vertices[] = {
-        { 10, 10 },
-        { 110, 8 },
-        { 30, 90 }
+    Vertex vertices0[] = {
+        {{ 10,  10 }, { 255, 255, 0 }},
+        {{ 110, 10 }, { 255, 128, 0 }},
+        {{ 30,  90 }, { 255,   0, 0 }}
     };
     
-    Vec2I triangle1[] = {
-        { 110, 8 },
-        { 120, 120 },
-        { 30,  90 }
+    Vertex vertices1[] = {
+        {{ 110, 10 }, { 0, 128, 255 }},
+        {{ 120, 120 }, { 0, 255, 0 }},
+        {{ 30,  90 }, { 255, 0, 255 }}
     };
 
 	while (!global_should_close) {
@@ -521,10 +549,10 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 		//	vertices[2].x += 1;
 		//}
         if (!get_key_state(W).is_down) {
-            RenderTriangleToBuffer(&global_backbuffer, vertices[0], vertices[1], vertices[2], 0x49c44d);
+            RenderTriangleToBuffer(&global_backbuffer, vertices0[0], vertices0[1], vertices0[2]);
         }
         if (!get_key_state(S).is_down) {
-            RenderTriangleToBuffer(&global_backbuffer, triangle1[0], triangle1[1], triangle1[2], 0xe37e44);
+            RenderTriangleToBuffer(&global_backbuffer, vertices1[0], vertices1[1], vertices1[2]);
         }
         CopyBufferToDisplay(&global_backbuffer, device_context, global_window.client_width, global_window.client_height);
 
