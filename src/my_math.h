@@ -27,13 +27,13 @@ typedef struct Tag_Vec3 {
 } Vec3;
 
 typedef union Tag_Vec4 {
-	struct {
-		float x;
-		float y;
-		float z;
-		float w;
-	} value;
-	float e[4];
+    struct {
+        float x;
+        float y;
+        float z;
+        float w;
+    } value;
+    float e[4];
 } Vec4;
 
 typedef struct Tag_Mat4 {
@@ -207,13 +207,21 @@ inline Mat4 ortho_projection(float left, float right, float bottom, float top, f
 }
 
 inline Vec4 mat4_vec4_mul(Mat4 m, Vec4 v) {
-	Vec4 result;
+	Vec4 result = {0};
 	for (int i = 0; i < 4; ++i) {
 		for (int j = 0; j < 4; ++j) {
 			result.e[j] += m.e[i][j] * v.e[j];
 		}
 	}
 	return result;
+}
+
+Mat4 translate(Vec3 pos) {
+    Mat4 result = mat4_identity();
+    result.e[0][3] = pos.x;
+    result.e[1][3] = pos.y;
+    result.e[2][3] = pos.z;
+    return result;
 }
 
 #endif 
