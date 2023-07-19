@@ -561,6 +561,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
     Mat4 proj  = ortho_projection(-WIDTH * scale, WIDTH * scale, HEIGHT * scale, -HEIGHT * scale, 0.1f, 100.0f);
     Mat4 view_proj = mat4_mul(view, proj);
 
+    // @test
+    float test = m_sin(4.5f);
+
     while (!global_should_close) {
         float delta_time = (float)frame_time / 1000.0f;
         
@@ -568,7 +571,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
         
         ClearFramebuffer(&global_backbuffer, 0x222222);
         
-        Mat4 model = mat4_identity();
+        Mat4 model = mat4_identity(); // @todo: rotate or something
         Mat4 mvp = mat4_mul(model, view_proj);
 
         Projected_Vertex mesh[12];
@@ -581,7 +584,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
                 result.value.y /= result.value.w;
                 result.value.z /= result.value.w;
             }
-            Vec2 ndc = { result.value.x, result.value.z };
+            Vec2 ndc = { result.value.x, -result.value.y }; // mesh is flipped if y is not flipped
             mesh[i].position = ToPixelPositions(ndc, PIXELS_X, PIXELS_Y);
             mesh[i].color = pyramid[i].color;
         }
