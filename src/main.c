@@ -510,9 +510,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
     double fps = 0.0;
     double mcpf = 0.0;
 
-    int blue_offset = 0;
-    int green_offset = 0;
-
     Sound_Output sound_output = {0};
     sound_output.samples_per_second = 48000;
     sound_output.tone_hz = 256;
@@ -525,36 +522,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
     init_direct_sound(global_window.handle, sound_output.secondary_buffer_size, sound_output.samples_per_second);
     fill_sound_buffer(&sound_output, 0, sound_output.latency_sample_count * sound_output.bytes_per_sample);
     IDirectSoundBuffer_Play(global_sound_buffer, 0, 0, DSBPLAY_LOOPING);
-    
-    Projected_Vertex vertices0[] = {
-        {{ 10, 20 }, { 255, 255, 0 }},
-        {{ 90, 30 }, { 255, 128, 0 }},
-        {{ 20, 100 }, { 255,   0, 0 }}
-    };
-    
-    Projected_Vertex vertices1[] = {
-        {{ 90, 30 }, { 0, 128, 255 }},
-        {{ 80, 80 }, { 0, 255, 0 }},
-        {{ 20, 100 }, { 255, 0, 255 }}
-    };
-
-    Vertex pyramid2[] = {
-        { {  0.0f, 0.0f,  1.0f }, {255, 0, 0} },
-        { { -1.0f, 0.0f, -1.0f }, {255, 0, 0} },
-        { {  1.0f, 0.0f, -1.0f }, {255, 0, 0} },
-        
-        { { -1.0f, 0.0f, -1.0f }, {0, 255, 0} },
-        { {  0.0f, 2.0f,  0.0f }, {0, 255, 0} },
-        { {  0.0f, 0.0f,  1.0f }, {0, 255, 0} },
-
-        { { -1.0f, 0.0f, -1.0f }, {0, 0, 255} },
-        { {  1.0f, 0.0f, -1.0f }, {0, 0, 255} },
-        { {  0.0f, 2.0f,  0.0f }, {0, 0, 255} },
-
-        { {  0.0f, 0.0f,  1.0f }, {255, 255, 0} },
-        { {  0.0f, 2.0f,  0.0f }, {255, 255, 0} },
-        { {  1.0f, 0.0f, -1.0f }, {255, 255, 0} }
-    };
 
     Vertex pyramid[] = {
         { { -1.0f, -1.0f, -1.0f }, {255, 0, 0} },
@@ -573,15 +540,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
         { {  0.0f,  1.0f, -1.0f }, {255, 255, 0} },
         { {  1.0f, -1.0f, -1.0f }, {255, 255, 0} }
     };
-
-    Vertex triangle[] = {
-        {{ -1.0f, -1.0f, 0.0f }, { 255, 255, 0 }},
-        {{ -1.0f,  1.0f, 0.0f }, { 255, 255, 0 }},
-        {{  1.0f,  0.0f, 0.0f }, { 255, 255, 0 }},
-        {{  1.0f,  0.0f, 0.0f }, { 255, 0, 0 }},
-        {{ -1.0f,  1.0f, 0.0f }, { 255, 0, 0 }},
-        {{ -1.0f, -1.0f, 0.0f }, { 255, 0, 0 }}
-    };
         
     float left = -2.0f;
     float right = 2.0f;
@@ -589,10 +547,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
     float top = -2.0f;
     float n = 0.1f;
     float f = 100.0f;
+    float width = (float)global_backbuffer.width;
+    float height = (float)global_backbuffer.height;
     Mat4 view  = LookAt(0.0f, 3.0f, -5.0f,
                         0.0f, 0.0f, 0.0f,
                         0.0f, 1.0f, 0.0f);
     Mat4 proj  = ortho_projection(left, right, bottom, top, n, f);
+    //Mat4 proj = perspective_projection(0.35f, width / height, n, f);
     Mat4 proj_view = mat4_mul(proj, view);
 
     float t = 0.0f;
@@ -610,7 +571,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
         // transformations in the order: scale -> rotate -> translate
         Mat4 model = mat4_mul(mat4_identity(), rotate_y(t));
         Mat4 mvp = mat4_mul(proj_view, model);
-        t += 0.000025f;
+        t += delta_time * 0.5f;
         
         Projected_Vertex mesh[12];
 
@@ -628,7 +589,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
             
             // -> perspective divide
             Vec3 ndc;
-            if (result.value.w != 0) {
+            if (result.value.w != 0.0f) {
                 ndc.x = result.value.x / result.value.w;
                 ndc.y = result.value.y / result.value.w;
                 ndc.z = result.value.z / result.value.w;
@@ -640,8 +601,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
             }
             
             // -> viewport transform
-            float width = (float)global_backbuffer.width;
-            float height = (float)global_backbuffer.height;
             Vec3I viewport_position = { (int)(width / 2 * ndc.x + width / 2),
                                         (int)(height / 2 * ndc.y + height / 2),
                                         (int)((f - n) / 2.0f * ndc.z + (f + n) / 2.0f) };

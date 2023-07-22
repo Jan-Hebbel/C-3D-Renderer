@@ -1,6 +1,8 @@
 #ifndef MY_MATH_H_
 #define MY_MATH_H_
 
+#include <math.h> // only for sqrtf @todo ?!
+
 typedef struct Tag_Vec2 {
 	float x;
 	float y;
@@ -87,9 +89,10 @@ float table[TABLE_SIZE] = {
     0.9996988f, 0.9998306f, 0.9999247f, 0.9999812f, 1.0000000f
 };
 
-float lerp(float v0, float v1, float x) {
-    return 0.0f;
-}
+// @todo
+/* float lerp(float v0, float v1, float x) { */
+/*     return 0.0f; */
+/* } */
 
 float m_sin(float turn) {
     float normalized_turn = turn - (int)turn;
@@ -171,6 +174,10 @@ float m_cos(float turn) {
     else {
         return lerp;
     }    
+}
+
+float m_tan(float turn) {
+    return m_sin(turn) / m_cos(turn);
 }
 
 inline Vec2 vec2_add(Vec2 v1, Vec2 v2) {
@@ -327,7 +334,7 @@ inline Mat4	mat4_mul(Mat4 a, Mat4 b) {
 	return result;
 }
 
-inline Mat4 mat4_identity() {
+inline Mat4 mat4_identity(void) {
 	Mat4 result = {0.0f};
 	result.e[0][0] = 1.0f;
 	result.e[1][1] = 1.0f;
@@ -366,6 +373,18 @@ Mat4 ortho_projection(float left, float right,
 	return orth;
 }
 
+Mat4 perspective_projection(float fov, float aspect, float near, float far) {
+    float tan_half_fov = m_tan(fov / 2.0f);
+
+    Mat4 pers = {0};
+    pers.e[0][0] = 1 / aspect * tan_half_fov;
+    pers.e[1][1] = 1 / tan_half_fov;
+    pers.e[2][2] = (-near - far) / (near - far);
+    pers.e[2][3] = 2 * far * near / (near - far);
+    pers.e[3][2] = -1.0f;
+    return pers;
+}
+
 Vec4 mat4_vec4_mul(Mat4 m, Vec4 v) {
 	Vec4 result = {0};
 	for (int i = 0; i < 4; ++i) {
@@ -380,7 +399,7 @@ Mat4 transpose(Mat4 m) {
     Mat4 result;
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
-            result.e[i][j] = result.e[j][i];
+            result.e[i][j] = m.e[j][i];
         }
     }
     return result;
