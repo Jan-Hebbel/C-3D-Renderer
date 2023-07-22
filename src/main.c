@@ -5,8 +5,6 @@
 #include <windows.h>
 #include <dsound.h>
 
-#include <math.h>
-
 //
 // constants
 //
@@ -146,8 +144,8 @@ void fill_sound_buffer(Sound_Output *sound_output, DWORD byte_to_lock, DWORD byt
         i16 *sample_out = (i16 *)region1;
         DWORD region1_sample_count = region1_size / sound_output->bytes_per_sample;
         for (DWORD sample_index = 0; sample_index < region1_sample_count; ++sample_index) {
-            f32 t = TAU * (f32)sound_output->running_sample_index / (f32)sound_output->wave_period;
-            f32 sin_value = sinf(t);
+            f32 t = (f32)sound_output->running_sample_index / (f32)sound_output->wave_period;
+            f32 sin_value = m_sin(t);
             i16 sample_value = (i16)(sin_value * sound_output->tone_volume);
             *sample_out++ = sample_value;
             *sample_out++ = sample_value;
@@ -158,8 +156,8 @@ void fill_sound_buffer(Sound_Output *sound_output, DWORD byte_to_lock, DWORD byt
         sample_out = (i16 *)region2;
         DWORD region2_sample_count = region2_size / sound_output->bytes_per_sample;
         for (DWORD sample_index = 0; sample_index < region2_sample_count; ++sample_index) {
-            f32 t = TAU * (f32)sound_output->running_sample_index / (f32)sound_output->wave_period;
-            f32 sin_value = sinf(t);
+            f32 t = (f32)sound_output->running_sample_index / (f32)sound_output->wave_period;
+            f32 sin_value = m_sin(t);
             i16 sample_value = (i16)(sin_value * sound_output->tone_volume);
             *sample_out++ = sample_value;
             *sample_out++ = sample_value;
@@ -171,10 +169,10 @@ void fill_sound_buffer(Sound_Output *sound_output, DWORD byte_to_lock, DWORD byt
     }
 }
 
-inline Vec2I ToPixelPositions(Vec2 ndc, int pixels_x, int pixels_y) {
+inline Vec2I ToPixelPosition(float x, float y, int width, int height) {
     Vec2I result;
-    result.x = (int)((ndc.x + 1.0f) / 2.0f * (float)pixels_x);
-    result.y = (int)((ndc.y + 1.0f) / 2.0f * (float)pixels_y);
+    result.x = (int)((x + 1.0f) / 2.0f * (float)width);
+    result.y = (int)((y + 1.0f) / 2.0f * (float)height);
     return result;
 }
 
@@ -489,10 +487,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
     QueryPerformanceFrequency(&perf_count_frequency_result);
     i64 perf_count_frequency = perf_count_frequency_result.QuadPart;
 
+    //
+    // creating window
+    //
     if (!PlatformCreateWindow(instance, WIDTH, HEIGHT, "3D Software Renderer")) {
         return FAILURE;
     }
-    
     CreateFramebuffer(&global_backbuffer, PIXELS_X, PIXELS_Y);
 
     //
@@ -538,71 +538,128 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
         {{ 20, 100 }, { 255, 0, 255 }}
     };
 
-    Vertex pyramid[] = {
-        { {  0.0f, 0.0f,  1.0f }, {255, 255, 0} },
-        { { -1.0f, 0.0f, -1.0f }, {255, 128, 0} },
+    Vertex pyramid2[] = {
+        { {  0.0f, 0.0f,  1.0f }, {255, 0, 0} },
+        { { -1.0f, 0.0f, -1.0f }, {255, 0, 0} },
         { {  1.0f, 0.0f, -1.0f }, {255, 0, 0} },
         
         { { -1.0f, 0.0f, -1.0f }, {0, 255, 0} },
-        { {  0.0f, 2.0f,  0.0f }, {0, 0, 255} },
-        { {  0.0f, 0.0f,  1.0f }, {255, 255, 0} },
+        { {  0.0f, 2.0f,  0.0f }, {0, 255, 0} },
+        { {  0.0f, 0.0f,  1.0f }, {0, 255, 0} },
 
-        { { -1.0f, 0.0f, -1.0f }, {0, 255, 0} },
-        { {  1.0f, 0.0f, -1.0f }, {255, 0, 0} },
+        { { -1.0f, 0.0f, -1.0f }, {0, 0, 255} },
+        { {  1.0f, 0.0f, -1.0f }, {0, 0, 255} },
         { {  0.0f, 2.0f,  0.0f }, {0, 0, 255} },
 
         { {  0.0f, 0.0f,  1.0f }, {255, 255, 0} },
-        { {  0.0f, 2.0f,  0.0f }, {0, 0, 255} },
-        { {  1.0f, 0.0f, -1.0f }, {255, 0, 0} }
+        { {  0.0f, 2.0f,  0.0f }, {255, 255, 0} },
+        { {  1.0f, 0.0f, -1.0f }, {255, 255, 0} }
     };
-    
-    float scale = 1.0f;
+
+    Vertex pyramid[] = {
+        { { -1.0f, -1.0f, -1.0f }, {255, 0, 0} },
+        { {  0.0f,  0.0f,  0.0f }, {255, 0, 0} },
+        { {  1.0f, -1.0f, -1.0f }, {255, 0, 0} },
+        
+        { { -1.0f, -1.0f, -1.0f }, {0, 255, 0} },
+        { {  0.0f,  1.0f, -1.0f }, {0, 255, 0} },
+        { {  0.0f,  0.0f,  0.0f }, {0, 255, 0} },
+
+        { {  1.0f, -1.0f, -1.0f }, {0, 0, 255} },
+        { {  0.0f,  1.0f, -1.0f }, {0, 0, 255} },
+        { { -1.0f, -1.0f, -1.0f }, {0, 0, 255} },
+
+        { {  0.0f,  0.0f,  0.0f }, {255, 255, 0} },
+        { {  0.0f,  1.0f, -1.0f }, {255, 255, 0} },
+        { {  1.0f, -1.0f, -1.0f }, {255, 255, 0} }
+    };
+
+    Vertex triangle[] = {
+        {{ -1.0f, -1.0f, 0.0f }, { 255, 255, 0 }},
+        {{ -1.0f,  1.0f, 0.0f }, { 255, 255, 0 }},
+        {{  1.0f,  0.0f, 0.0f }, { 255, 255, 0 }},
+        {{  1.0f,  0.0f, 0.0f }, { 255, 0, 0 }},
+        {{ -1.0f,  1.0f, 0.0f }, { 255, 0, 0 }},
+        {{ -1.0f, -1.0f, 0.0f }, { 255, 0, 0 }}
+    };
+        
+    float left = -2.0f;
+    float right = 2.0f;
+    float bottom = 2.0f;
+    float top = -2.0f;
+    float n = 0.1f;
+    float f = 100.0f;
     Mat4 view  = mat4_identity();
-    Mat4 proj  = ortho_projection(-WIDTH * scale, WIDTH * scale, HEIGHT * scale, -HEIGHT * scale, 0.1f, 100.0f);
-    Mat4 view_proj = mat4_mul(view, proj);
+    Mat4 proj  = ortho_projection(left, right, bottom, top, n, f);
+    Mat4 proj_view = mat4_mul(proj, view);
 
-    // @test
-    float test = m_sin(4.5f);
-
+    float t = 0.0f;
+    
     while (!global_should_close) {
         float delta_time = (float)frame_time / 1000.0f;
         
         platform_process_events();
         
         ClearFramebuffer(&global_backbuffer, 0x222222);
-        
-        Mat4 model = mat4_identity(); // @todo: rotate or something
-        Mat4 mvp = mat4_mul(model, view_proj);
 
-        Projected_Vertex mesh[12];
+        //
+        // graphics test
+        //
+        // transformations in the order: scale -> rotate -> translate
+        Mat4 model = mat4_mul(mat4_identity(), rotate_y(t));
+        Mat4 mvp = mat4_mul(proj_view, model);
+        t += 0.000025f;
         
+        Projected_Vertex mesh[12];
+
+        // Vertex processing
         for (int i = 0; i < SIZE(pyramid); ++i) {
-            Vec4 pyramid4 = { pyramid[i].position.x, pyramid[i].position.y, pyramid[i].position.z, 1.0f };
-            Vec4 result = mat4_vec4_mul(mvp, pyramid4);
+            Vec4 edge = { pyramid[i].position.x,
+                          pyramid[i].position.y,
+                          pyramid[i].position.z,
+                          1.0f };
+            Vec4 result = mat4_vec4_mul(mvp, edge);
+
+            // Vertex post-processing
+            // -> clipping
+            
+            
+            // -> perspective divide
+            Vec3 ndc;
             if (result.value.w != 0) {
-                result.value.x /= result.value.w;
-                result.value.y /= result.value.w;
-                result.value.z /= result.value.w;
+                ndc.x = result.value.x / result.value.w;
+                ndc.y = result.value.y / result.value.w;
+                ndc.z = result.value.z / result.value.w;
             }
-            Vec2 ndc = { result.value.x, -result.value.y }; // mesh is flipped if y is not flipped
-            mesh[i].position = ToPixelPositions(ndc, PIXELS_X, PIXELS_Y);
+            else {
+                ndc.x = result.value.x;
+                ndc.y = result.value.y;
+                ndc.z = result.value.z;
+            }
+            
+            // -> viewport transform
+            float width = (float)global_backbuffer.width;
+            float height = (float)global_backbuffer.height;
+            Vec3I viewport_position = { (int)(width / 2 * ndc.x + width / 2),
+                                       (int)(height / 2 * ndc.y + height / 2),
+                                       (int)((f - n) / 2.0f * ndc.z + (f + n) / 2.0f) };
+
+            mesh[i].position.x = viewport_position.x;
+            mesh[i].position.y = viewport_position.y;
             mesh[i].color = pyramid[i].color;
         }
 
         RenderMeshToBuffer(&global_backbuffer, mesh, SIZE(mesh));
+        
+        // Fragment processing
+        // @todo
+        
         CopyBufferToDisplay(&global_backbuffer, device_context, global_window.client_width,
                             global_window.client_height);
         
-        /* if (!get_key_state(W).is_down) { */
-        /*     RenderTriangleToBuffer(&global_backbuffer, vertices0[0], vertices0[1], vertices0[2]); */
-        /* } */
-        /* if (!get_key_state(S).is_down) { */
-        /*     RenderTriangleToBuffer(&global_backbuffer, vertices1[0], vertices1[1], vertices1[2]); */
-        /* } */
-        /* CopyBufferToDisplay(&global_backbuffer, device_context, global_window.client_width, */
-        /*                     global_window.client_height); */
-        
-        // @test
+        //
+        // audio test
+        //
         DWORD play_cursor;
         DWORD write_cursor;
         if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(global_sound_buffer, &play_cursor, &write_cursor) )) {
@@ -636,8 +693,6 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
         last_counter = end_counter;
         last_cycle_count = end_cycle_count;
     }
-
-    // @todo: free stuff
-	
+    
     return SUCCESS;
 }

@@ -43,6 +43,4 @@ typedef double f64;
 #define SUCCESS 0
 #define FAILURE 1
 
-#define TAU 6.28318530718f
-
 #endif

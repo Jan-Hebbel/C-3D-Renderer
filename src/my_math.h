@@ -37,7 +37,9 @@ typedef struct Tag_Mat4 {
 	float e[4][4];
 } Mat4;
 
+#define PI 3.14159265359f
 #define TABLE_SIZE 257
+#define STEP_SIZE 0.25f * 2 * PI / (TABLE_SIZE - 1)
 
 float table[TABLE_SIZE] = {
     0.0000000f, 0.0061359f, 0.0122715f, 0.0184067f, 0.0245412f, 0.0306748f, 
@@ -90,24 +92,85 @@ float lerp(float v0, float v1, float x) {
 }
 
 float m_sin(float turn) {
-    float normalized_turn = turn == (int)turn ? 1.0f : turn - (int)turn;
-    if (normalized_turn < 0.0f) normalized_turn = -normalized_turn;
+    float normalized_turn = turn - (int)turn;
+    if (normalized_turn < 0.0f) normalized_turn = 1.0f + normalized_turn;
+
+    int mirror = 0;
+    int flip = 0;
     
-    float index = normalized_turn * 4.0f * (TABLE_SIZE - 1);
-    int index1 = (int)index;
-    if (normalized_turn > 0.25f && normalized_turn <= 0.75f) {
-        index1 = TABLE_SIZE - 1 - index1;
+    float index;
+    if (normalized_turn >= 0.0f && normalized_turn < 0.25f) {
+        index = normalized_turn * 4.0f * (TABLE_SIZE - 1);
     }
-    int index0 = index1 - 1;
-    
-    float lerp = table[index0] + ((table[index1] - table[index0]) * (index - index0));
-    
-    if (normalized_turn >= 0.0f && normalized_turn <= 0.5f) {
-        return lerp;
+    else if (normalized_turn >= 0.25f && normalized_turn < 0.5f) {
+        index = (normalized_turn - 0.25f) * 4.0f * (TABLE_SIZE - 1);
+        mirror = 1;
     }
-    else { // normalized_turn > 0.5f && normalized_turn <= 1.0f
+    else if (normalized_turn >= 0.5f && normalized_turn < 0.75f) {
+        index = (normalized_turn - 0.5f) * 4.0f * (TABLE_SIZE - 1);
+        flip = 1;
+    }
+    else {
+        index = (normalized_turn - 0.75f) * 4.0f * (TABLE_SIZE - 1);
+        mirror = 1;
+        flip = 1;
+    }
+    if (mirror) {
+        index = (TABLE_SIZE - 1) - index;
+    }
+    int index0 = (int)index;
+    int index1 = index0 + 1;
+    
+    float lerp = table[index0] + (((table[index1] - table[index0]) / STEP_SIZE) *
+                                  ((index - index0) * STEP_SIZE));
+    
+    if (flip) {
         return -lerp;
     }
+    else {
+        return lerp;
+    }
+}
+
+float m_cos(float turn) {
+    float normalized_turn = turn - (int)turn;
+    if (normalized_turn < 0.0f) normalized_turn = 1.0f + normalized_turn;
+
+    int mirror = 0;
+    int flip = 0;
+    
+    float index;
+    if (normalized_turn >= 0.0f && normalized_turn < 0.25f) {
+        index = normalized_turn * 4.0f * (TABLE_SIZE - 1);
+        mirror = 1;
+    }
+    else if (normalized_turn >= 0.25f && normalized_turn < 0.5f) {
+        index = (normalized_turn - 0.25f) * 4.0f * (TABLE_SIZE - 1);
+        flip = 1;
+    }
+    else if (normalized_turn >= 0.5f && normalized_turn < 0.75f) {
+        index = (normalized_turn - 0.5f) * 4.0f * (TABLE_SIZE - 1);
+        mirror = 1;
+        flip = 1;
+    }
+    else {
+        index = (normalized_turn - 0.75f) * 4.0f * (TABLE_SIZE - 1);
+    }
+    if (mirror) {
+        index = (TABLE_SIZE - 1) - index;
+    }
+    int index0 = (int)index;
+    int index1 = index0 + 1;
+    
+    float lerp = table[index0] + (((table[index1] - table[index0]) / STEP_SIZE) *
+                                  ((index - index0) * STEP_SIZE));
+    
+    if (flip) {
+        return -lerp;
+    }
+    else {
+        return lerp;
+    }    
 }
 
 inline Vec2 vec2_add(Vec2 v1, Vec2 v2) {
@@ -247,6 +310,7 @@ inline Mat4	mat4_mul(Mat4 a, Mat4 b) {
 	Mat4 result;
 	for (int i = 0; i < 4; ++i) {
 		for (int j = 0; j < 4; ++j) {
+            result.e[i][j] = 0.0f;
 			for (int k = 0; k < 4; ++k) {
 				result.e[i][j] += a.e[i][k] * b.e[k][j];
 			}
@@ -264,38 +328,94 @@ inline Mat4 mat4_identity() {
 	return result;
 }
 
-inline Mat4 ortho_projection(float left, float right, float bottom, float top, float near, float far) {
-	Mat4 orth = {0};
-	orth.e[0][0] = 2.0f / (right - left);
-	orth.e[1][1] = 2.0f / (top - bottom);
-	orth.e[2][2] = 1.0f / (far - near);
-	orth.e[3][0] = -(right + left) / (right - left);
-	orth.e[3][1] = -(top + bottom) / (top - bottom);
-	orth.e[3][2] = -near / (far - near);
+Mat4 ortho_projection(float left, float right,
+                      float bottom, float top,
+                      float near, float far) {
+    float width = right - left;
+    float height = top - bottom;
+    float depth = far - near;
+
+    Mat4 orth;
+	orth.e[0][0] = 2.0f / width;
+    orth.e[0][1] = 0.0f;
+    orth.e[0][2] = 0.0f;
+    orth.e[0][3] = -(right + left) / width;
+
+    orth.e[1][0] = 0.0f;
+	orth.e[1][1] = 2.0f / height;
+    orth.e[1][2] = 0.0f;
+    orth.e[1][3] = -(top + bottom) / height;
+
+    orth.e[2][0] = 0.0f;
+    orth.e[2][1] = 0.0f;
+	orth.e[2][2] = -2.0f / depth;
+    orth.e[2][3] = -(far + near) / depth;
+    
+	orth.e[3][0] = 0.0f;
+	orth.e[3][1] = 0.0f;
+	orth.e[3][2] = 0.0f;
 	orth.e[3][3] = 1.0f;
 	return orth;
 }
 
-inline Vec4 mat4_vec4_mul(Mat4 m, Vec4 v) {
+Vec4 mat4_vec4_mul(Mat4 m, Vec4 v) {
 	Vec4 result = {0};
 	for (int i = 0; i < 4; ++i) {
 		for (int j = 0; j < 4; ++j) {
-			result.e[j] += m.e[i][j] * v.e[j];
+			result.e[i] += m.e[i][j] * v.e[j];
 		}
 	}
 	return result;
 }
 
-Mat4 translate(Vec3 pos) {
-    Mat4 result = mat4_identity();
-    result.e[0][3] = pos.x;
-    result.e[1][3] = pos.y;
-    result.e[2][3] = pos.z;
+Mat4 transpose(Mat4 m) {
+    Mat4 result;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            result.e[i][j] = result.e[j][i];
+        }
+    }
     return result;
 }
 
-Mat4 rotate(float turn) {
-    return mat4_identity();
+Mat4 translate(float x, float y, float z) {
+    Mat4 result = mat4_identity();
+    result.e[0][3] = x;
+    result.e[1][3] = y;
+    result.e[2][3] = z;
+    return result;
+}
+
+Mat4 rotate_x(float turn) {
+    Mat4 result = mat4_identity();
+    result.e[1][1] =  m_cos(turn);
+    result.e[1][2] = -m_sin(turn);
+    result.e[2][1] =  m_sin(turn);
+    result.e[2][2] =  m_cos(turn);
+    return result;
+}
+
+Mat4 rotate_y(float turn) {
+    Mat4 result = mat4_identity();
+    result.e[0][0] =  m_cos(turn);
+    result.e[0][2] =  m_sin(turn);
+    result.e[2][0] = -m_sin(turn);
+    result.e[2][2] =  m_cos(turn);
+    return result;
+}
+
+Mat4 rotate_z(float turn) {
+    Mat4 result = mat4_identity();
+    result.e[0][0] =  m_cos(turn);
+    result.e[0][1] = -m_sin(turn);
+    result.e[1][0] =  m_sin(turn);
+    result.e[1][1] =  m_cos(turn);
+    return result;
+}
+
+Mat4 LookAt(Vec3 forward, Vec3 up, Vec3 position) {
+    Mat4 result = {0};
+    return result;
 }
 
 #endif 
