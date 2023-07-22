@@ -238,7 +238,7 @@ inline Vec3I vec3i_make(int x, int y, int z) {
     return result;
 }
 
-Vec3I icross(Vec3I v1, Vec3I v2) {
+Vec3I vec3i_cross(Vec3I v1, Vec3I v2) {
     Vec3I result;
     result.x = v1.y * v2.z - v1.z * v2.y;
     result.y = v1.z * v2.x - v1.x * v2.z;
@@ -295,6 +295,14 @@ Vec3 vec3_normalize(Vec3 v) {
 		result.z = v.z / length;
 	}
 	return result;
+}
+
+Vec3 vec3_cross(Vec3 v1, Vec3 v2) {
+    Vec3 result;
+    result.x = v1.y * v2.z - v1.z * v2.y;
+    result.y = v1.z * v2.x - v1.x * v2.z;
+    result.z = v1.x * v2.y - v1.y * v2.x;
+    return result;
 }
 
 inline Vec4 vec4_make(float x, float y, float z, float w) {
@@ -413,8 +421,40 @@ Mat4 rotate_z(float turn) {
     return result;
 }
 
-Mat4 LookAt(Vec3 forward, Vec3 up, Vec3 position) {
+Mat4 LookAt(float position_x, float position_y, float position_z,
+            float target_x, float target_y, float target_z,
+            float fake_up_x, float fake_up_y, float fake_up_z) {
+    // calculating forward direction of camera and negating it, so that the
+    // points toward negative z
+    Vec3 position = { position_x, position_y, position_z };
+    Vec3 target = { target_x, target_y, target_z };
+    Vec3 fake_up = { fake_up_x, fake_up_y, fake_up_z };
+    Vec3 reverse_forward = vec3_normalize(vec3_sub(position, target));
+    Vec3 right = vec3_normalize(vec3_cross(fake_up, reverse_forward));
+    Vec3 up = vec3_cross(reverse_forward, right);
+    
     Mat4 result = {0};
+    
+    result.e[0][0] = right.x;
+    result.e[1][0] = right.y;
+    result.e[2][0] = right.z;
+    result.e[3][0] = 0.0f;
+
+    result.e[0][1] = up.x;
+    result.e[1][1] = up.y;
+    result.e[2][1] = up.z;
+    result.e[3][1] = 0.0f;
+
+    result.e[0][2] = reverse_forward.x;
+    result.e[1][2] = reverse_forward.y;
+    result.e[2][2] = reverse_forward.z;
+    result.e[3][2] = 0.0f;
+
+    result.e[0][3] = -target.x;
+    result.e[1][3] = -target.y;
+    result.e[2][3] = -target.z;
+    result.e[3][3] = 1.0f;
+    
     return result;
 }
 

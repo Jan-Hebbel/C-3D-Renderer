@@ -589,7 +589,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
     float top = -2.0f;
     float n = 0.1f;
     float f = 100.0f;
-    Mat4 view  = mat4_identity();
+    Mat4 view  = LookAt(0.0f, 3.0f, -5.0f,
+                        0.0f, 0.0f, 0.0f,
+                        0.0f, 1.0f, 0.0f);
     Mat4 proj  = ortho_projection(left, right, bottom, top, n, f);
     Mat4 proj_view = mat4_mul(proj, view);
 
@@ -641,8 +643,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
             float width = (float)global_backbuffer.width;
             float height = (float)global_backbuffer.height;
             Vec3I viewport_position = { (int)(width / 2 * ndc.x + width / 2),
-                                       (int)(height / 2 * ndc.y + height / 2),
-                                       (int)((f - n) / 2.0f * ndc.z + (f + n) / 2.0f) };
+                                        (int)(height / 2 * ndc.y + height / 2),
+                                        (int)((f - n) / 2.0f * ndc.z + (f + n) / 2.0f) };
 
             mesh[i].position.x = viewport_position.x;
             mesh[i].position.y = viewport_position.y;
