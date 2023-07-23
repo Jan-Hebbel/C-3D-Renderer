@@ -317,7 +317,7 @@ Vec3 vec3_cross(Vec3 v1, Vec3 v2) {
 }
 
 float vec3_dot(Vec3 v1, Vec3 v2) {
-    return v1.x * v2.x + v1.y + v2.y + v1.z * v2.z;
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
 }
 
 inline Vec4 vec4_make(float x, float y, float z, float w) {
@@ -418,28 +418,15 @@ Mat4 LookAt(float position_x, float position_y, float position_z,
     Vec3 fake_up = { fake_up_x, fake_up_y, fake_up_z };
 
     // calculating forward direction of camera and negating it, so that the
-    // points toward negative z
+    // camera points toward negative z
     Vec3 backward = vec3_normalize(vec3_sub(position, target));
     Vec3 right = vec3_normalize(vec3_cross(fake_up, backward));
     Vec3 up = vec3_cross(backward, right);
-    
-    /* Mat4 result = { right.x,    right.y,    right.z,    -vec3_dot(right, position), */
-    /*                 up.x,       up.y,       up.z,       -vec3_dot(up, position), */
-    /*                 backward.x, backward.y, backward.z, -vec3_dot(backward, position), */
-    /*                 0.0f,       0.0f,       0.0f,       1.0f }; */
-    /* Mat4 orientation = { right.x,    right.y,    right.z,    0.0f, */
-    /*                      up.x,       up.y,       up.z,       0.0f, */
-    /*                      backward.x, backward.y, backward.z, 0.0f, */
-    /*                      0.0f,       0.0f,       0.0f,       1.0f }; */
-    Mat4 orientation = { right.x, up.x, backward.x, 0.0f,
-                         right.y, up.y, backward.y, 0.0f,
-                         right.z, up.z, backward.z, 0.0f,
-                         0.0f,    0.0f, 0.0f,       1.0f };
-    Mat4 translation = { 1.0f, 0.0f, 0.0f, -position.x,
-                         0.0f, 1.0f, 0.0f, -position.y,
-                         0.0f, 0.0f, 1.0f, -position.z,
-                         0.0f, 0.0f, 0.0f, 1.0f };
-    Mat4 result = mat4_mul(transpose(orientation), translation);
+
+    Mat4 result = { right.x,    right.y,    right.z,    -vec3_dot(right, position),
+                    up.x,       up.y,       up.z,       -vec3_dot(up, position),
+                    backward.x, backward.y, backward.z, -vec3_dot(backward, position),
+                    0.0f,       0.0f,       0.0f,       1.0f };
     return result;
 }
 

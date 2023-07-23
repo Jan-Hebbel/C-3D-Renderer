@@ -593,8 +593,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
     float f = 100.0f;
     float width = (float)global_backbuffer.width;
     float height = (float)global_backbuffer.height;
-    Mat4 view  = LookAt(0.0f, 5.0f, 5.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
-    //view = mat4_identity();
+    Mat4 view  = LookAt(0.0f, 2.0f, 5.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
     //Mat4 proj  = ortho_projection(-2.0f, 2.0f, -2.0f, 2.0f, n, f);
     Mat4 proj  = perspective_projection(0.25f, width / height, n, f);
 
