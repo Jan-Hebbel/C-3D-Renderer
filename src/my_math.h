@@ -180,6 +180,10 @@ float m_tan(float turn) {
     return m_sin(turn) / m_cos(turn);
 }
 
+float m_cotan(float turn) {
+    return m_cos(turn) / m_sin(turn);
+}
+
 inline Vec2 vec2_add(Vec2 v1, Vec2 v2) {
 	Vec2 result;
 	result.x = v1.x + v2.x;
@@ -312,6 +316,10 @@ Vec3 vec3_cross(Vec3 v1, Vec3 v2) {
     return result;
 }
 
+float vec3_dot(Vec3 v1, Vec3 v2) {
+    return v1.x * v2.x + v1.y + v2.y + v1.z * v2.z;
+}
+
 inline Vec4 vec4_make(float x, float y, float z, float w) {
 	Vec4 result;
 	result.value.x = x;
@@ -334,6 +342,10 @@ inline Mat4	mat4_mul(Mat4 a, Mat4 b) {
 	return result;
 }
 
+Mat4 mat4_mul3(Mat4 a, Mat4 b, Mat4 c) {
+    return mat4_mul(mat4_mul(a, b), c);
+}
+
 inline Mat4 mat4_identity(void) {
 	Mat4 result = {0.0f};
 	result.e[0][0] = 1.0f;
@@ -341,48 +353,6 @@ inline Mat4 mat4_identity(void) {
 	result.e[2][2] = 1.0f;
 	result.e[3][3] = 1.0f;
 	return result;
-}
-
-Mat4 ortho_projection(float left, float right,
-                      float bottom, float top,
-                      float near, float far) {
-    float width = right - left;
-    float height = top - bottom;
-    float depth = far - near;
-
-    Mat4 orth;
-	orth.e[0][0] = 2.0f / width;
-    orth.e[0][1] = 0.0f;
-    orth.e[0][2] = 0.0f;
-    orth.e[0][3] = -(right + left) / width;
-
-    orth.e[1][0] = 0.0f;
-	orth.e[1][1] = 2.0f / height;
-    orth.e[1][2] = 0.0f;
-    orth.e[1][3] = -(top + bottom) / height;
-
-    orth.e[2][0] = 0.0f;
-    orth.e[2][1] = 0.0f;
-	orth.e[2][2] = -2.0f / depth;
-    orth.e[2][3] = -(far + near) / depth;
-    
-	orth.e[3][0] = 0.0f;
-	orth.e[3][1] = 0.0f;
-	orth.e[3][2] = 0.0f;
-	orth.e[3][3] = 1.0f;
-	return orth;
-}
-
-Mat4 perspective_projection(float fov, float aspect, float near, float far) {
-    float tan_half_fov = m_tan(fov / 2.0f);
-
-    Mat4 pers = {0};
-    pers.e[0][0] = 1 / aspect * tan_half_fov;
-    pers.e[1][1] = 1 / tan_half_fov;
-    pers.e[2][2] = (-near - far) / (near - far);
-    pers.e[2][3] = 2 * far * near / (near - far);
-    pers.e[3][2] = -1.0f;
-    return pers;
 }
 
 Vec4 mat4_vec4_mul(Mat4 m, Vec4 v) {
@@ -443,37 +413,60 @@ Mat4 rotate_z(float turn) {
 Mat4 LookAt(float position_x, float position_y, float position_z,
             float target_x, float target_y, float target_z,
             float fake_up_x, float fake_up_y, float fake_up_z) {
-    // calculating forward direction of camera and negating it, so that the
-    // points toward negative z
     Vec3 position = { position_x, position_y, position_z };
     Vec3 target = { target_x, target_y, target_z };
     Vec3 fake_up = { fake_up_x, fake_up_y, fake_up_z };
-    Vec3 reverse_forward = vec3_normalize(vec3_sub(position, target));
-    Vec3 right = vec3_normalize(vec3_cross(fake_up, reverse_forward));
-    Vec3 up = vec3_cross(reverse_forward, right);
-    
-    Mat4 result = {0};
-    
-    result.e[0][0] = right.x;
-    result.e[1][0] = right.y;
-    result.e[2][0] = right.z;
-    result.e[3][0] = 0.0f;
 
-    result.e[0][1] = up.x;
-    result.e[1][1] = up.y;
-    result.e[2][1] = up.z;
-    result.e[3][1] = 0.0f;
-
-    result.e[0][2] = reverse_forward.x;
-    result.e[1][2] = reverse_forward.y;
-    result.e[2][2] = reverse_forward.z;
-    result.e[3][2] = 0.0f;
-
-    result.e[0][3] = -target.x;
-    result.e[1][3] = -target.y;
-    result.e[2][3] = -target.z;
-    result.e[3][3] = 1.0f;
+    // calculating forward direction of camera and negating it, so that the
+    // points toward negative z
+    Vec3 backward = vec3_normalize(vec3_sub(position, target));
+    Vec3 right = vec3_normalize(vec3_cross(fake_up, backward));
+    Vec3 up = vec3_cross(backward, right);
     
+    /* Mat4 result = { right.x,    right.y,    right.z,    -vec3_dot(right, position), */
+    /*                 up.x,       up.y,       up.z,       -vec3_dot(up, position), */
+    /*                 backward.x, backward.y, backward.z, -vec3_dot(backward, position), */
+    /*                 0.0f,       0.0f,       0.0f,       1.0f }; */
+    /* Mat4 orientation = { right.x,    right.y,    right.z,    0.0f, */
+    /*                      up.x,       up.y,       up.z,       0.0f, */
+    /*                      backward.x, backward.y, backward.z, 0.0f, */
+    /*                      0.0f,       0.0f,       0.0f,       1.0f }; */
+    Mat4 orientation = { right.x, up.x, backward.x, 0.0f,
+                         right.y, up.y, backward.y, 0.0f,
+                         right.z, up.z, backward.z, 0.0f,
+                         0.0f,    0.0f, 0.0f,       1.0f };
+    Mat4 translation = { 1.0f, 0.0f, 0.0f, -position.x,
+                         0.0f, 1.0f, 0.0f, -position.y,
+                         0.0f, 0.0f, 1.0f, -position.z,
+                         0.0f, 0.0f, 0.0f, 1.0f };
+    Mat4 result = mat4_mul(transpose(orientation), translation);
+    return result;
+}
+
+Mat4 ortho_projection(float left, float right,
+                      float bottom, float top,
+                      float near, float far) {
+    float width = right - left;
+    float height = top - bottom;
+    float depth = far - near;
+
+    Mat4 orth = { 2.0f / width, 0.0f,          0.0f,          -(right + left) / width,
+                  0.0f,         2.0f / height, 0.0f,          -(top + bottom) / height,
+                  0.0f,         0.0f,          -2.0f / depth, -(far + near) / depth,
+                  0.0f,         0.0f,          0.0f,          1.0f };
+	return orth;
+}
+
+Mat4 perspective_projection(float fov, float aspect, float near, float far) {
+    /* float f = m_tan(0.5f * fov); */
+    /* float inverse_range = 1.0f / (near - far); */
+    float f = m_cotan(0.5f * fov);
+    float inv_depth = 1.0f / (near - far);
+    
+    Mat4 result = { f / aspect, 0.0f, 0.0f,                      0.0f,
+                    0.0f,       f,    0.0f,                      0.0f,
+                    0.0f,       0.0f, (far + near) * inv_depth,  (2.0f * far * near) * inv_depth,
+                    0.0f,       0.0f, -1.0f,                     0.0f };
     return result;
 }
 

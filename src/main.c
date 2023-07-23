@@ -523,38 +523,80 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
     fill_sound_buffer(&sound_output, 0, sound_output.latency_sample_count * sound_output.bytes_per_sample);
     IDirectSoundBuffer_Play(global_sound_buffer, 0, 0, DSBPLAY_LOOPING);
 
-    Vertex pyramid[] = {
-        { { -1.0f, -1.0f, -1.0f }, {255, 0, 0} },
-        { {  0.0f,  0.0f,  0.0f }, {255, 0, 0} },
-        { {  1.0f, -1.0f, -1.0f }, {255, 0, 0} },
+    /* Vertex pyramid[] = { */
+    /*     { { -1.0f, -1.0f, -1.0f }, {255, 0, 0} }, */
+    /*     { {  0.0f,  0.0f,  0.0f }, {255, 0, 0} }, */
+    /*     { {  1.0f, -1.0f, -1.0f }, {255, 0, 0} }, */
         
-        { { -1.0f, -1.0f, -1.0f }, {0, 255, 0} },
-        { {  0.0f,  1.0f, -1.0f }, {0, 255, 0} },
-        { {  0.0f,  0.0f,  0.0f }, {0, 255, 0} },
+    /*     { { -1.0f, -1.0f, -1.0f }, {0, 255, 0} }, */
+    /*     { {  0.0f,  1.0f, -1.0f }, {0, 255, 0} }, */
+    /*     { {  0.0f,  0.0f,  0.0f }, {0, 255, 0} }, */
 
-        { {  1.0f, -1.0f, -1.0f }, {0, 0, 255} },
-        { {  0.0f,  1.0f, -1.0f }, {0, 0, 255} },
-        { { -1.0f, -1.0f, -1.0f }, {0, 0, 255} },
+    /*     { {  1.0f, -1.0f, -1.0f }, {0, 0, 255} }, */
+    /*     { {  0.0f,  1.0f, -1.0f }, {0, 0, 255} }, */
+    /*     { { -1.0f, -1.0f, -1.0f }, {0, 0, 255} }, */
 
-        { {  0.0f,  0.0f,  0.0f }, {255, 255, 0} },
-        { {  0.0f,  1.0f, -1.0f }, {255, 255, 0} },
-        { {  1.0f, -1.0f, -1.0f }, {255, 255, 0} }
-    };
-        
-    float left = -2.0f;
-    float right = 2.0f;
-    float bottom = 2.0f;
-    float top = -2.0f;
+    /*     { {  0.0f,  0.0f,  0.0f }, {255, 255, 0} }, */
+    /*     { {  0.0f,  1.0f, -1.0f }, {255, 255, 0} }, */
+    /*     { {  1.0f, -1.0f, -1.0f }, {255, 255, 0} } */
+    /* }; */
+
+    Vertex cube[] = {{{ -1.0f, -1.0f, -1.0f }, { 255, 0, 0 }},
+                     {{  1.0f, -1.0f, -1.0f }, { 255, 0, 0 }},
+                     {{ -1.0f,  1.0f, -1.0f }, { 255, 0, 0 }},
+
+                     {{  1.0f, -1.0f, -1.0f }, { 255, 0, 0 }},
+                     {{  1.0f,  1.0f, -1.0f }, { 255, 0, 0 }},
+                     {{ -1.0f,  1.0f, -1.0f }, { 255, 0, 0 }},
+
+                     {{  1.0f, -1.0f, -1.0f }, { 255, 255, 0 }},
+                     {{  1.0f, -1.0f,  1.0f }, { 255, 255, 0 }},
+                     {{  1.0f,  1.0f, -1.0f }, { 255, 255, 0 }},
+
+                     {{  1.0f, -1.0f,  1.0f }, { 255, 255, 0 }},
+                     {{  1.0f,  1.0f,  1.0f }, { 255, 255, 0 }},
+                     {{  1.0f,  1.0f, -1.0f }, { 255, 255, 0 }},
+
+                     {{  1.0f, -1.0f,  1.0f }, { 255, 0, 255 }},
+                     {{ -1.0f, -1.0f,  1.0f }, { 255, 0, 255 }},
+                     {{  1.0f,  1.0f,  1.0f }, { 255, 0, 255 }},
+
+                     {{ -1.0f, -1.0f,  1.0f }, { 255, 0, 255 }},
+                     {{ -1.0f,  1.0f,  1.0f }, { 255, 0, 255 }},
+                     {{  1.0f,  1.0f,  1.0f }, { 255, 0, 255 }},
+
+                     {{ -1.0f, -1.0f,  1.0f }, { 0, 255, 0 }},
+                     {{ -1.0f, -1.0f, -1.0f }, { 0, 255, 0 }},
+                     {{ -1.0f,  1.0f,  1.0f }, { 0, 255, 0 }},
+
+                     {{ -1.0f, -1.0f, -1.0f }, { 0, 255, 0 }},
+                     {{ -1.0f,  1.0f, -1.0f }, { 0, 255, 0 }},
+                     {{ -1.0f,  1.0f,  1.0f }, { 0, 255, 0 }},
+
+                     {{  1.0f,  1.0f,  1.0f }, { 0, 255, 255 }},
+                     {{ -1.0f,  1.0f,  1.0f }, { 0, 255, 255 }},
+                     {{  1.0f,  1.0f, -1.0f }, { 0, 255, 255 }},
+
+                     {{ -1.0f,  1.0f,  1.0f }, { 0, 255, 255 }},
+                     {{ -1.0f,  1.0f, -1.0f }, { 0, 255, 255 }},
+                     {{  1.0f,  1.0f, -1.0f }, { 0, 255, 255 }},
+
+                     {{  1.0f, -1.0f, -1.0f }, { 0, 0, 255 }},
+                     {{ -1.0f, -1.0f, -1.0f }, { 0, 0, 255 }},
+                     {{  1.0f, -1.0f,  1.0f }, { 0, 0, 255 }},
+
+                     {{ -1.0f, -1.0f, -1.0f }, { 0, 0, 255 }},
+                     {{ -1.0f, -1.0f,  1.0f }, { 0, 0, 255 }},
+                     {{  1.0f, -1.0f,  1.0f }, { 0, 0, 255 }}};
+    
     float n = 0.1f;
     float f = 100.0f;
     float width = (float)global_backbuffer.width;
     float height = (float)global_backbuffer.height;
-    Mat4 view  = LookAt(0.0f, 3.0f, -5.0f,
-                        0.0f, 0.0f, 0.0f,
-                        0.0f, 1.0f, 0.0f);
-    Mat4 proj  = ortho_projection(left, right, bottom, top, n, f);
-    //Mat4 proj = perspective_projection(0.35f, width / height, n, f);
-    Mat4 proj_view = mat4_mul(proj, view);
+    Mat4 view  = LookAt(0.0f, 5.0f, 5.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f);
+    //view = mat4_identity();
+    //Mat4 proj  = ortho_projection(-2.0f, 2.0f, -2.0f, 2.0f, n, f);
+    Mat4 proj  = perspective_projection(0.25f, width / height, n, f);
 
     float t = 0.0f;
     
@@ -569,17 +611,17 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
         // graphics test
         //
         // transformations in the order: scale -> rotate -> translate
-        Mat4 model = mat4_mul(mat4_identity(), rotate_y(t));
-        Mat4 mvp = mat4_mul(proj_view, model);
+        Mat4 model = mat4_mul(translate(0.0f, 0.0f, 0.0f), rotate_y(t));
+        Mat4 mvp = mat4_mul3(proj, view, model);
         t += delta_time * 0.5f;
         
-        Projected_Vertex mesh[12];
+        Projected_Vertex mesh[36];
 
         // Vertex processing
-        for (int i = 0; i < SIZE(pyramid); ++i) {
-            Vec4 edge = { pyramid[i].position.x,
-                          pyramid[i].position.y,
-                          pyramid[i].position.z,
+        for (int i = 0; i < SIZE(cube); ++i) {
+            Vec4 edge = { cube[i].position.x,
+                          cube[i].position.y,
+                          cube[i].position.z,
                           1.0f };
             Vec4 result = mat4_vec4_mul(mvp, edge);
 
@@ -591,12 +633,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
             Vec3 ndc;
             if (result.value.w != 0.0f) {
                 ndc.x = result.value.x / result.value.w;
-                ndc.y = result.value.y / result.value.w;
+                ndc.y = -result.value.y / result.value.w;
                 ndc.z = result.value.z / result.value.w;
             }
             else {
                 ndc.x = result.value.x;
-                ndc.y = result.value.y;
+                ndc.y = -result.value.y;
                 ndc.z = result.value.z;
             }
             
@@ -607,7 +649,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line,
 
             mesh[i].position.x = viewport_position.x;
             mesh[i].position.y = viewport_position.y;
-            mesh[i].color = pyramid[i].color;
+            mesh[i].color = cube[i].color;
         }
 
         RenderMeshToBuffer(&global_backbuffer, mesh, SIZE(mesh));
