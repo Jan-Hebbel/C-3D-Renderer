@@ -9,3 +9,6 @@ Work in progress on a C 3D Software Renderer.
 
 ## 22.07.2023 - Going 3D.
 ![pyramid](https://github.com/Jan-Hebbel/C-3D-Renderer/assets/75396907/6c987571-21ab-4e1d-b935-5d101adf221f)
+
+## 23.07.2023 - Cube projected via perspective projection matrix.
+![cube_perspective_projection](https://github.com/Jan-Hebbel/C-3D-Renderer/assets/75396907/f8a2ee10-3ddf-4d3c-b2b1-1f0c5e0e299c)
